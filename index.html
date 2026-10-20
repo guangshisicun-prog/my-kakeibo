@@ -98,14 +98,13 @@
   .btn.blue { background: var(--blue); }
 
   /* 一覧 */
-  .entry { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px dashed var(--line); }
+  .entry { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px dashed var(--line); cursor: pointer; }
   .entry:last-child { border-bottom: none; }
-  .entry .icon { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 20px; flex-shrink: 0; background: var(--pink-soft); }
-  .entry .icon.in { background: var(--mint-soft); }
-  .entry .icon.move, .entry .icon.adjust, .entry .icon.cardpay { background: var(--blue-soft); }
+  .entry:active { background: var(--bg); }
   .entry .info { flex: 1; min-width: 0; }
-  .entry .info .memo { font-size: 12px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .entry .amt { border: none; background: none; font-family: inherit; font-size: 16px; font-weight: 700; padding: 6px 0; color: var(--text); }
+  .entry .info .title { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .entry .info .memo { font-size: 11px; color: var(--sub); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .entry .amt { font-size: 16px; font-weight: 700; color: var(--text); white-space: nowrap; }
   .entry .amt.minus { color: var(--red); }
   .entry .amt.plus { color: #3fa889; }
   .entry .del { border: none; background: none; color: var(--sub); font-size: 18px; padding: 6px; }
@@ -117,11 +116,13 @@
   .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
   .chart-info { min-height: 20px; font-size: 13px; text-align: center; margin: 6px 0 2px; }
   .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex-shrink: 0; }
-  .donut-wrap { display: flex; gap: 14px; align-items: center; }
-  .donut-wrap svg { width: 150px; flex-shrink: 0; }
-  .donut-legend { flex: 1; min-width: 0; font-size: 13px; }
-  .donut-legend .row { padding: 4px 0; }
-  .donut-legend .row span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+  /* グラフの下に内訳を並べる（カテゴリ名が折り返さないように） */
+  .donut-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .donut-wrap svg { width: 170px; }
+  .donut-legend { width: 100%; font-size: 14px; }
+  .donut-legend .row { padding: 5px 0; border-bottom: 1px dashed var(--line); }
+  .donut-legend .row:last-child { border-bottom: none; }
+  .donut-legend .row span:first-child { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
   [data-tip] { cursor: pointer; }
 
   /* カレンダー */
@@ -180,6 +181,7 @@
     <div class="muted">今月あと使えるお金（予算から）</div>
     <div class="big" id="left"></div>
     <div class="muted" id="left-note"></div>
+    <div id="total-budget" style="margin-top:6px"></div>
   </div>
   <div class="card">
     <div class="row"><span>収入</span><b class="plus" id="sum-in"></b></div>
@@ -199,15 +201,18 @@
 
 <!-- 記録する -->
 <section class="page" id="page-add">
-  <h1>記録する ✏️</h1>
+  <h1 id="add-title">記録する ✏️</h1>
   <div class="card t-out" id="add-card">
     <div class="toggle" id="add-toggle">
       <button class="on" data-type="out">支出</button>
       <button data-type="in">収入</button>
       <button data-type="move">移動</button>
     </div>
+    <div class="muted" id="auto-note" hidden>🤖 アプリが自動で記録したものです。直すと、あとから自動で書きかえられなくなります。</div>
     <label>金額（円）</label>
     <input class="amount" id="f-amount" type="number" inputmode="numeric" placeholder="0">
+    <label>内容（なくてもOK）</label>
+    <input id="f-memo" type="text" placeholder="例：コンビニでお昼">
 
     <div data-show="out">
       <label>はらい方</label>
@@ -231,9 +236,11 @@
 
     <label>日付</label>
     <input id="f-date" type="date">
-    <label>メモ（なくてもOK）</label>
-    <input id="f-memo" type="text" placeholder="例：コンビニでお昼">
     <button class="btn" id="f-save">記録する</button>
+    <div id="edit-buttons" hidden>
+      <button class="btn sub" id="f-cancel">やめる</button>
+      <button class="btn sub" id="f-delete" style="color:var(--red)">この記録を削除する</button>
+    </div>
   </div>
 </section>
 
@@ -272,7 +279,7 @@
     </div>
   </div>
   <div id="review-list" hidden>
-    <div class="muted" style="margin:0 4px 10px">金額をタップすると直せます。「自動」は、アプリが自動で記録したものです。</div>
+    <div class="muted" style="margin:0 4px 10px">記録をタップすると、直したり削除したりできます。「自動」は、アプリが自動で記録したものです。</div>
     <div class="card" id="entry-list"></div>
   </div>
 </section>
@@ -348,15 +355,14 @@
     <div class="muted" style="margin-top:6px">この日から自動で記録します。前の日にすると、そこから今日までの分もまとめて記録します（「記録をつけ始めた日」より前はのぞく）。</div>
     <label>はらい方</label>
     <select id="u-method"></select>
-    <label>カテゴリ</label>
-    <select id="u-cat"></select>
+    <div class="muted" style="margin-top:8px">🔁 カテゴリは自動で「固定費」になります</div>
     <button class="btn" id="u-save">保存</button>
     <button class="btn sub" id="u-cancel">やめる</button>
   </div>
 
   <div class="card">
     <h2>🎯 予算</h2>
-    <div class="muted" style="margin-bottom:6px">カテゴリごとに「1か月でいくらまで使うか」を決めます。0のカテゴリは予算なしになります。毎月同じ予算を使います。</div>
+    <div class="muted" style="margin-bottom:6px">カテゴリごとに「1か月でいくらまで使うか」を決めます。0のカテゴリは予算なしになります。毎月同じ予算を使います。固定費（毎月の定額支出）は、予算の計算に入れません。</div>
     <div id="budget-form"></div>
     <div class="row" style="margin-top:16px"><span>予算の合計</span><b id="budget-total"></b></div>
     <button class="btn" id="b-save">予算を保存</button>
@@ -392,6 +398,7 @@ const CATS = {
     { name: '趣味', icon: '🎨' },
     { name: '服・美容', icon: '👗' },
     { name: 'その他', icon: '📦' },
+    { name: '固定費', icon: '🔁' },
   ],
   in: [
     { name: 'バイト代', icon: '💼' },
@@ -400,7 +407,10 @@ const CATS = {
   ],
 };
 // グラフでカテゴリを見分ける色（色の見え方が人とちがっても区別しやすい順番）
-const CAT_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6'];
+const CAT_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
+// 定額支出はぜんぶ「固定費」。固定費は予算の計算から外す
+const FIXED = '固定費';
+const BUDGET_CATS = CATS.out.filter((c) => c.name !== FIXED);
 const ACCTS = [
   { id: 'bank', name: '銀行', icon: '🏦' },
   { id: 'paypay', name: 'PayPay', icon: '📱' },
@@ -478,7 +488,10 @@ function normalize(d) {
     if (e.type === 'out' && !e.method) e.method = 'cash';
     if (e.type === 'in' && !e.account) e.account = 'bank';
     if (e.payKey) { e.autoKey = 'pay:' + e.payKey; e.edited = true; delete e.payKey; }
+    if (e.autoKey && e.autoKey.startsWith('sub:')) e.category = FIXED;
   }
+  for (const s of out.subs) s.category = FIXED;
+  delete out.budgets[FIXED];
   return out;
 }
 function load() {
@@ -588,7 +601,7 @@ function autoRecord() {
     while (y < ty || (y === ty && m <= tm)) {
       const date = subDate(sub, y, m);
       if (date) {
-        upsert(`sub:${sub.id}:${y}-${pad(m)}`, { type: 'out', method: sub.method, category: sub.category, amount: sub.amount, date, memo: sub.name }, true);
+        upsert(`sub:${sub.id}:${y}-${pad(m)}`, { type: 'out', method: sub.method, category: FIXED, amount: sub.amount, date, memo: sub.name }, true);
       }
       [y, m] = addMonth(y, m, 1);
     }
@@ -684,36 +697,43 @@ function renderHome() {
   $('#sum-diff').textContent = (diff > 0 ? '+' : '') + yen(diff);
   $('#sum-diff').className = diff >= 0 ? 'plus' : 'minus';
 
-  const budgetTotal = Object.values(data.budgets).reduce((a, n) => a + n, 0);
+  // 予算は、固定費をのぞいた支出で計算する
+  const budgetTotal = BUDGET_CATS.reduce((a, c) => a + (data.budgets[c.name] || 0), 0);
+  const budgetUsed = sum(outs.filter((e) => e.category !== FIXED));
   if (budgetTotal > 0) {
-    const left = budgetTotal - sumOut;
+    const left = budgetTotal - budgetUsed;
     $('#left').textContent = yen(left);
     $('#left').className = 'big' + (left < 0 ? ' minus' : '');
-    $('#left-note').textContent = `予算 ${yen(budgetTotal)} − 支出 ${yen(sumOut)}`;
+    $('#left-note').textContent = `予算 ${yen(budgetTotal)} − 支出 ${yen(budgetUsed)}（固定費はのぞく）`;
+    $('#total-budget').innerHTML = budgetItem('合計', budgetUsed, budgetTotal);
   } else {
     $('#left').textContent = '—';
     $('#left').className = 'big';
     $('#left-note').textContent = '「設定」で予算を立てると、ここに残りが出ます';
+    $('#total-budget').innerHTML = '';
   }
 
-  const rows = CATS.out.map((c) => {
+  const rows = BUDGET_CATS.map((c) => {
     const budget = data.budgets[c.name] || 0;
     const used = sum(outs.filter((e) => e.category === c.name));
-    if (!budget && !used) return '';
-    const pct = budget ? Math.min(100, (used / budget) * 100) : 100;
-    const cls = !budget || used > budget ? 'over' : used / budget >= 0.8 ? 'warn' : '';
-    const note = budget
-      ? used > budget ? `<span class="minus">${yen(used - budget)} オーバー</span>` : `あと ${yen(budget - used)}`
-      : '予算なし';
-    return `<div class="budget-item">
-      <div class="row"><span>${c.icon} ${c.name}</span><span class="muted">${yen(used)}${budget ? ' / ' + yen(budget) : ''}</span></div>
-      <div class="bar"><div class="${cls}" style="width:${pct}%"></div></div>
-      <div class="muted" style="text-align:right">${note}</div>
-    </div>`;
+    return budget || used ? budgetItem(`${c.icon} ${c.name}`, used, budget) : '';
   }).join('');
   $('#budget-list').innerHTML = rows || '<div class="empty">まだ予算も記録もありません🌱</div>';
 
   $('#home-subs').innerHTML = subsHtml();
+}
+// 予算のバー（8割をこえると黄色、こえたら赤）
+function budgetItem(label, used, budget) {
+  const pct = budget ? Math.min(100, (used / budget) * 100) : 100;
+  const cls = !budget || used > budget ? 'over' : used / budget >= 0.8 ? 'warn' : '';
+  const note = budget
+    ? used > budget ? `<span class="minus">${yen(used - budget)} オーバー</span>` : `あと ${yen(budget - used)}`
+    : '予算なし';
+  return `<div class="budget-item">
+    <div class="row"><span>${label}</span><span class="muted">${yen(used)}${budget ? ' / ' + yen(budget) : ''}</span></div>
+    <div class="bar"><div class="${cls}" style="width:${pct}%"></div></div>
+    <div class="muted" style="text-align:right">${note}</div>
+  </div>`;
 }
 // 毎月の定額支出の合計と内訳
 function subsHtml() {
@@ -766,23 +786,81 @@ $$('#add-toggle button').forEach((b) =>
   })
 );
 $('#f-date').value = today();
+
+// 記録を直す（一覧でタップした記録を、この画面に読みこむ）
+let editing = null;
+function startEdit(e) {
+  editing = e;
+  form.type = e.type;
+  if (e.type === 'out') Object.assign(form, { method: e.method, cat: e.category });
+  if (e.type === 'in') Object.assign(form, { acct: e.account, cat: e.category });
+  if (e.type === 'move') Object.assign(form, { from: e.from, to: e.to });
+  $('#f-amount').value = e.amount;
+  $('#f-memo').value = e.memo || '';
+  $('#f-date').value = e.date;
+  $('#add-title').textContent = '記録を直す ✏️';
+  $('#f-save').textContent = '保存する';
+  $('#edit-buttons').hidden = false;
+  $('#add-toggle').hidden = !!e.autoKey; // 自動の記録は、支出・収入の切りかえはしない
+  $('#auto-note').hidden = !e.autoKey;
+  renderForm();
+  showPage('add');
+}
+function endEdit() {
+  editing = null;
+  $('#add-title').textContent = '記録する ✏️';
+  $('#f-save').textContent = '記録する';
+  $('#edit-buttons').hidden = true;
+  $('#add-toggle').hidden = false;
+  $('#auto-note').hidden = true;
+  $('#f-amount').value = '';
+  $('#f-memo').value = '';
+  $('#f-date').value = today();
+}
+$('#f-cancel').addEventListener('click', () => {
+  endEdit();
+  showPage('review');
+});
+$('#f-delete').addEventListener('click', () => {
+  if (!editing || !confirm('この記録を削除しますか？')) return;
+  deleteEntry(editing);
+  endEdit();
+  toast('削除しました');
+  showPage('review');
+  render();
+});
+
 $('#f-save').addEventListener('click', () => {
   const amount = num($('#f-amount').value);
   if (!amount) return toast('金額を入れてね');
-  const e = { id: uid(), type: form.type, amount, date: $('#f-date').value || today(), memo: $('#f-memo').value.trim() };
+  const e = { id: editing ? editing.id : uid(), type: form.type, amount, date: $('#f-date').value || today(), memo: $('#f-memo').value.trim() };
   if (form.type === 'out') Object.assign(e, { method: form.method, category: form.cat });
   if (form.type === 'in') Object.assign(e, { account: form.acct, category: form.cat });
   if (form.type === 'move') {
     if (form.from === form.to) return toast('「どこから」と「どこへ」がおなじです');
     Object.assign(e, { from: form.from, to: form.to });
   }
-  data.entries.push(e);
-  save();
-  $('#f-amount').value = '';
-  $('#f-memo').value = '';
-  toast('記録しました✨');
+  if (editing) {
+    if (editing.autoKey) Object.assign(e, { autoKey: editing.autoKey, edited: true }); // 直したので、自動で上書きしない
+    data.entries[data.entries.indexOf(editing)] = e;
+    save();
+    endEdit();
+    toast('直しました✨');
+    showPage('review');
+  } else {
+    data.entries.push(e);
+    save();
+    $('#f-amount').value = '';
+    $('#f-memo').value = '';
+    toast('記録しました✨');
+  }
   render();
 });
+function deleteEntry(e) {
+  if (e.autoKey) data.skipped.push(e.autoKey); // 消した自動記録は、もうつくらない
+  data.entries = data.entries.filter((x) => x !== e);
+  save();
+}
 
 // ===== シフト（カレンダー） =====
 let selDate = today();
@@ -981,53 +1059,53 @@ function renderList() {
       html += `<div class="day">${mdw(e.date)}</div>`;
       lastDate = e.date;
     }
-    let icon, title, sub, sign = '', cls = '';
+    // 内容を大きく出して、カテゴリやはらい方は下に小さく出す（内容がなければカテゴリ名）
+    let icon, kind, sub, sign = '', cls = '';
     if (e.type === 'out') {
       const m = methodOf(e.method);
-      icon = iconOf('out', e.category); title = e.category; sub = `${m.icon} ${m.name}`; sign = '-'; cls = 'minus';
+      icon = iconOf('out', e.category); kind = e.category; sub = `${icon} ${e.category}・${m.icon} ${m.name}`; sign = '-'; cls = 'minus';
     } else if (e.type === 'in') {
       const a = acctOf(e.account);
-      icon = iconOf('in', e.category); title = e.category; sub = `${a.icon} ${a.name}へ`; sign = '+'; cls = 'plus';
+      icon = iconOf('in', e.category); kind = e.category; sub = `${icon} ${e.category}・${a.icon} ${a.name}へ`; sign = '+'; cls = 'plus';
     } else if (e.type === 'move') {
-      icon = '💱'; title = '移動'; sub = `${acctOf(e.from).name} → ${acctOf(e.to).name}`;
+      icon = '💱'; kind = '移動'; sub = `💱 移動・${acctOf(e.from).name} → ${acctOf(e.to).name}`;
     } else if (e.type === 'cardpay') {
-      icon = '💳'; title = 'クレカの引き落とし'; sub = '🏦 銀行から（支出には数えません）';
+      icon = '💳'; kind = 'クレカの引き落とし'; sub = '🏦 銀行から（支出には数えません）';
     } else {
-      icon = '⚖️'; title = '残高を合わせた'; sub = acctOf(e.account).name; sign = e.amount > 0 ? '+' : '';
+      icon = '⚖️'; kind = '残高を合わせた'; sub = `⚖️ 残高を合わせた・${acctOf(e.account).name}`; sign = e.amount > 0 ? '+' : '';
     }
     const tag = e.autoKey ? `<span class="tag">自動${e.edited ? '・直した' : ''}</span>` : '';
-    html += `<div class="entry">
-      <div class="icon ${e.type}">${icon}</div>
-      <div class="info"><div>${escapeHtml(title)}${tag}</div><div class="memo">${escapeHtml(sub)}${e.memo ? '・' + escapeHtml(e.memo) : ''}</div></div>
-      <button class="amt ${cls}" data-edit="${e.id}">${sign}${yen(e.amount)}</button>
-      <button class="del" data-del="${e.id}" aria-label="消す">×</button>
+    html += `<div class="entry" data-edit="${e.id}">
+      <div class="info"><div class="title">${escapeHtml(e.memo || kind)}${tag}</div><div class="memo">${escapeHtml(sub)}</div></div>
+      <span class="amt ${cls}">${sign}${yen(e.amount)}</span>
+      <button class="del" data-del="${e.id}" aria-label="削除">×</button>
     </div>`;
   }
   $('#entry-list').innerHTML = html;
 }
 $('#entry-list').addEventListener('click', (ev) => {
-  const ed = ev.target.closest('[data-edit]');
-  if (ed) {
-    const e = data.entries.find((x) => String(x.id) === ed.dataset.edit);
-    if (!e) return;
-    const v = prompt('金額を直す（円）', String(e.amount));
-    if (v === null || v.trim() === '' || isNaN(Number(v))) return;
-    const n = Math.round(Number(v));
-    if (e.type !== 'adjust' && n <= 0) return toast('0より大きい金額を入れてね');
-    e.amount = n;
-    if (e.autoKey) e.edited = true; // 直した金額は、自動で上書きしない
-    save();
-    toast('金額を直しました');
+  const del = ev.target.closest('[data-del]');
+  if (del) {
+    const e = data.entries.find((x) => String(x.id) === del.dataset.del);
+    if (!e || !confirm('この記録を削除しますか？')) return;
+    deleteEntry(e);
+    toast('削除しました');
     return render();
   }
-  const del = ev.target.closest('[data-del]');
-  if (!del) return;
-  const e = data.entries.find((x) => String(x.id) === del.dataset.del);
-  if (!e || !confirm('この記録を消しますか？')) return;
-  if (e.autoKey) data.skipped.push(e.autoKey); // 消した自動記録は、もうつくらない
-  data.entries = data.entries.filter((x) => x !== e);
+  const ed = ev.target.closest('[data-edit]');
+  if (!ed) return;
+  const e = data.entries.find((x) => String(x.id) === ed.dataset.edit);
+  if (!e) return;
+  if (e.type === 'out' || e.type === 'in' || e.type === 'move') return startEdit(e);
+  // クレカの引き落とし・残高合わせは、金額だけ直せる
+  const v = prompt('金額を直す（円）', String(e.amount));
+  if (v === null || v.trim() === '' || isNaN(Number(v))) return;
+  const n = Math.round(Number(v));
+  if (e.type !== 'adjust' && n <= 0) return toast('0より大きい金額を入れてね');
+  e.amount = n;
+  if (e.autoKey) e.edited = true; // 直した金額は、自動で上書きしない
   save();
-  toast('消しました');
+  toast('金額を直しました');
   render();
 });
 
@@ -1052,11 +1130,11 @@ function renderSettings() {
   $('#sub-list').innerHTML = data.subs.length
     ? data.subs.map((s) => `<div class="item"><span>${methodOf(s.method).icon}</span>
         <div class="info"><b>${escapeHtml(s.name)}</b> ${yen(s.amount)}
-        <div class="muted">毎月${dayLabel(s.day)}・${methodOf(s.method).name}・${escapeHtml(s.category)}<br>${mdw(s.from).replace(/（.）/, '')}${s.from.slice(0, 4) !== today().slice(0, 4) ? `（${s.from.slice(0, 4)}年）` : ''}から</div></div>
+        <div class="muted">毎月${dayLabel(s.day)}・${methodOf(s.method).name}<br>${mdw(s.from).replace(/（.）/, '')}${s.from.slice(0, 4) !== today().slice(0, 4) ? `（${s.from.slice(0, 4)}年）` : ''}から</div></div>
         <button class="small-btn" data-edit-sub="${s.id}">編集</button></div>`).join('')
     : '<div class="muted">まだ登録されていません</div>';
 
-  $('#budget-form').innerHTML = CATS.out.map((c) => `<label>${c.icon} ${c.name}</label>
+  $('#budget-form').innerHTML = BUDGET_CATS.map((c) => `<label>${c.icon} ${c.name}</label>
     <input type="number" inputmode="numeric" data-budget="${c.name}" value="${data.budgets[c.name] || ''}" placeholder="0">`).join('');
   updateBudgetTotal();
 }
@@ -1145,8 +1223,6 @@ function openSubForm(sub) {
   $('#u-day').innerHTML = dayOptions(sub ? sub.day : 1);
   $('#u-method').innerHTML = METHODS.map((m) => `<option value="${m.id}">${m.icon} ${m.name}</option>`).join('');
   $('#u-method').value = sub ? sub.method : 'card';
-  $('#u-cat').innerHTML = CATS.out.map((c) => `<option value="${c.name}">${c.icon} ${c.name}</option>`).join('');
-  $('#u-cat').value = sub ? sub.category : '趣味';
   $('#u-from').value = sub ? sub.from : today();
   $('#u-cancel').textContent = sub ? 'この定額支出をやめる' : 'やめる';
   $('#sub-form').scrollIntoView({ behavior: 'smooth' });
@@ -1163,7 +1239,7 @@ $('#u-save').addEventListener('click', () => {
   if (!amount) return toast('金額を入れてね');
   const from = $('#u-from').value || today();
   const sub = editingSub || { id: uid() };
-  Object.assign(sub, { name, amount, day: Number($('#u-day').value), method: $('#u-method').value, category: $('#u-cat').value, from });
+  Object.assign(sub, { name, amount, day: Number($('#u-day').value), method: $('#u-method').value, category: FIXED, from });
   if (!editingSub) data.subs.push(sub);
   // 開始日を後ろにずらしたら、それより前の自動記録（直していないもの）は消す
   data.entries = data.entries.filter((e) => !(e.autoKey && e.autoKey.startsWith(`sub:${sub.id}:`) && !e.edited && e.date < from));
@@ -1229,13 +1305,17 @@ $('#import').addEventListener('change', async (ev) => {
 
 // ===== タブの切り替え =====
 let page = 'home';
+function showPage(name) {
+  page = name;
+  $$('nav button').forEach((x) => x.classList.toggle('on', x.dataset.page === name));
+  $$('.page').forEach((p) => p.classList.toggle('on', p.id === 'page-' + name));
+  if (name === 'settings') { $('#job-form').hidden = true; $('#sub-form').hidden = true; renderSettings(); }
+  window.scrollTo(0, 0);
+}
 $$('nav button').forEach((b) =>
   b.addEventListener('click', () => {
-    page = b.dataset.page;
-    $$('nav button').forEach((x) => x.classList.toggle('on', x === b));
-    $$('.page').forEach((p) => p.classList.toggle('on', p.id === 'page-' + page));
-    if (page === 'settings') { $('#job-form').hidden = true; $('#sub-form').hidden = true; renderSettings(); }
-    window.scrollTo(0, 0);
+    if (editing) endEdit(); // 直している途中でタブを切りかえたら、直すのをやめる
+    showPage(b.dataset.page);
   })
 );
 
@@ -1244,7 +1324,6 @@ function render() {
   $$('.month-label').forEach((l) => (l.textContent = `${view.getFullYear()}年${view.getMonth() + 1}月`));
   renderHome();
   renderCal();
-
   renderDonut();
   renderBalanceBars();
   renderList();

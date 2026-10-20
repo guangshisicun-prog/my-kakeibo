@@ -204,9 +204,9 @@ group('給料の自動記録', () => {
     app.tab('review');
     app.click('#review-toggle [data-view="list"]');
     app.click('#page-review .month button[data-move="-1"]');
-    app.w.__promptAnswer = '5000';
-    app.click(app.qa('#entry-list [data-edit]')[0]);
-    app.w.__promptAnswer = undefined;
+    app.click(app.qa('#entry-list [data-edit]')[0]); // タップすると「記録を直す」画面が開く
+    app.set('#f-amount', '5000');
+    app.click('#f-save');
     app.ev(`data.shifts.push(${JSON.stringify(shift('2026-08-06'))}); render();`);
     const p = app.auto('pay:')[0];
     eq([p.amount, p.edited], [5000, true]);
@@ -513,6 +513,68 @@ group('予算', () => {
 });
 
 // =====================================================================
+group('合計の予算と固定費', () => {
+  const rent = { id: 'u1', name: '家賃', amount: 50000, day: 5, method: 'bankdebit', category: 'その他', from: '2026-08-01' };
+  test('「今月あと使えるお金」の下に、合計の予算のバーが出る', async () => {
+    const app = await loadApp({ data: base({ budgets: { '食費': 30000, '趣味': 5000 }, entries: [out('2026-10-05', 1200), out('2026-10-06', 2000, 'cash', '趣味')] }) });
+    const t = app.text('#total-budget').replace(/\s+/g, ' ');
+    ok(t.includes('合計 ¥3,200 / ¥35,000') && t.includes('あと ¥31,800'), t);
+    ok(app.q('#total-budget').closest('.card').querySelector('#left'), '「今月あと使えるお金」と同じカードにある');
+  });
+  test('合計の予算も、8割で黄色・こえたら赤になる', async () => {
+    const warn = await loadApp({ data: base({ budgets: { '食費': 1000 }, entries: [out('2026-10-05', 900)] }) });
+    ok(warn.q('#total-budget .bar > div').classList.contains('warn'), '黄色');
+    const over = await loadApp({ data: base({ budgets: { '食費': 1000 }, entries: [out('2026-10-05', 1100)] }) });
+    ok(over.q('#total-budget .bar > div').classList.contains('over'), '赤');
+    ok(over.text('#total-budget').includes('¥100 オーバー'));
+  });
+  test('予算がないときは、合計のバーを出さない', async () => {
+    const app = await loadApp({ data: base() });
+    eq(app.q('#total-budget').innerHTML, '');
+  });
+  test('定額支出は、自動で「固定費」として記録される', async () => {
+    const app = await loadApp({ data: base({ subs: [rent] }) });
+    eq(app.auto('sub:').map((e) => e.category), ['固定費', '固定費', '固定費']);
+  });
+  test('前に登録・記録した定額支出も「固定費」に変わる', async () => {
+    const app = await loadApp({ data: base({ subs: [rent], entries: [
+      { id: 'old', type: 'out', method: 'bankdebit', category: 'その他', amount: 50000, date: '2026-08-05', autoKey: 'sub:u1:2026-08' },
+      out('2026-08-06', 300, 'cash', 'その他'), // 手で入れたものは変えない
+    ] }) });
+    eq(app.data().subs[0].category, '固定費');
+    eq(app.entries((e) => e.date.startsWith('2026-08')).map((e) => e.category), ['固定費', 'その他']);
+  });
+  test('固定費は予算の計算に入らない（支出の合計には入る）', async () => {
+    const app = await loadApp({ data: base({ subs: [rent], budgets: { '食費': 30000 }, entries: [out('2026-10-06', 1000)] }) });
+    eq(app.text('#left'), '¥29,000');
+    ok(app.text('#left-note').includes('固定費はのぞく'));
+    eq(app.text('#sum-out'), '¥51,000');
+    ok(!app.text('#budget-list').includes('固定費'), '予算の一覧に固定費を出さない');
+  });
+  test('設定の予算に「固定費」の欄はない', async () => {
+    const app = await loadApp({ data: base({ budgets: { '固定費': 9999 } }) });
+    app.tab('settings');
+    eq(app.q('[data-budget="固定費"]'), null);
+    eq(app.data().budgets, {}, '前に入れた固定費の予算は消す');
+  });
+  test('定額支出の画面に、カテゴリを選ぶ欄はない', async () => {
+    const app = await loadApp({ data: base() });
+    app.tab('settings');
+    app.click('#sub-new');
+    eq(app.q('#u-cat'), null);
+    ok(app.text('#sub-form').includes('自動で「固定費」になります'));
+    app.set('#u-name', 'Netflix'); app.set('#u-amount', '1490');
+    app.click('#u-save');
+    eq(app.data().subs[0].category, '固定費');
+  });
+  test('ふりかえりの内訳に「固定費」が出る', async () => {
+    const app = await loadApp({ data: base({ subs: [rent], entries: [out('2026-10-06', 1000)] }) });
+    const t = app.text('#chart-donut');
+    ok(/固定費\s*¥50,000/.test(t), t);
+  });
+});
+
+// =====================================================================
 group('グラフ', () => {
   test('収入と支出の棒グラフは出さない', async () => {
     const app = await loadApp({ data: base() });
@@ -810,23 +872,39 @@ group('一覧と残高合わせの細かい操作', () => {
     openList(app);
     eq(app.qa('#entry-list .day').map((d) => d.textContent), ['10月15日（木）', '10月5日（月）', '10月1日（木）']);
   });
-  test('金額を直すとき、空・0・キャンセルなら変わらない', async () => {
+  test('直すとき、金額が空・0なら保存しない', async () => {
     const app = await loadApp({ data: base({ entries: [out('2026-10-01', 800)] }) });
+    openList(app);
+    app.click('#entry-list [data-edit]');
+    for (const v of ['', '0']) {
+      app.set('#f-amount', v);
+      app.click('#f-save');
+      eq(app.toast(), '金額を入れてね');
+    }
+    eq(app.entries()[0].amount, 800);
+  });
+  test('手で入れた記録は、直しても「自動」あつかいにならない', async () => {
+    const app = await loadApp({ data: base({ entries: [out('2026-10-01', 800)] }) });
+    openList(app);
+    app.click('#entry-list [data-edit]');
+    app.set('#f-amount', '900');
+    app.click('#f-save');
+    const e = app.entries()[0];
+    eq([e.amount, e.edited, e.autoKey], [900, undefined, undefined]);
+  });
+  test('クレカの引き落としは、タップすると金額だけ直せる（空・0・キャンセルなら変わらない）', async () => {
+    const app = await loadApp({ data: base({ entries: [out('2026-09-01', 3000, 'card')] }) });
     openList(app);
     for (const ans of ['', '0', null, 'abc']) {
       app.w.__promptAnswer = ans;
       app.click('#entry-list [data-edit]');
     }
-    eq(app.entries()[0].amount, 800);
+    eq(app.auto('card:')[0].amount, 3000);
     eq(app.toast(), '0より大きい金額を入れてね');
-  });
-  test('手で入れた記録は、直しても「自動」あつかいにならない', async () => {
-    const app = await loadApp({ data: base({ entries: [out('2026-10-01', 800)] }) });
-    openList(app);
-    app.w.__promptAnswer = '900';
+    app.w.__promptAnswer = '3100';
     app.click('#entry-list [data-edit]');
-    const e = app.entries()[0];
-    eq([e.amount, e.edited, e.autoKey], [900, undefined, undefined]);
+    eq([app.auto('card:')[0].amount, app.auto('card:')[0].edited], [3100, true]);
+    eq(app.q('#page-review').classList.contains('on'), true, '画面は一覧のまま');
   });
   test('記録を消すとき「いいえ」なら消さない', async () => {
     const app = await loadApp({ data: base({ entries: [out('2026-10-01', 800)] }) });
@@ -843,7 +921,7 @@ group('一覧と残高合わせの細かい操作', () => {
     ] }) });
     openList(app);
     const t = app.text('#entry-list');
-    ['銀行 → お財布', '残高を合わせた', '+¥300', '📱 PayPayへ・おばあちゃん'].forEach((s) => ok(t.includes(s), `「${s}」が出ていません\n${t}`));
+    ['銀行 → お財布', '残高を合わせた', '+¥300', 'おばあちゃん', '📮 仕送り・📱 PayPayへ'].forEach((s) => ok(t.includes(s), `「${s}」が出ていません\n${t}`));
   });
   test('予算をこえたら「あと使えるお金」が赤くなる', async () => {
     const app = await loadApp({ data: base({ budgets: { '食費': 1000 }, entries: [out('2026-10-01', 1500), out('2026-10-02', 850, 'cash', '食費')] }) });
@@ -859,6 +937,347 @@ group('一覧と残高合わせの細かい操作', () => {
     app.tab('review');
     app.click('#page-review .month button[data-move="-1"]');
     ok(app.text('#chart-balance').includes('記録をつけ始める前の月です'));
+  });
+});
+
+// =====================================================================
+group('記録を直す・削除する・内容', () => {
+  const openList = (app) => { app.tab('review'); app.click('#review-toggle [data-view="list"]'); };
+  const lunch = () => Object.assign(out('2026-10-05', 800), { id: 'L', memo: 'コンビニでお昼' });
+  test('記録するときに「内容」を入れられて、一覧では内容が大きく出る', async () => {
+    const app = await loadApp({ data: base() });
+    app.tab('add');
+    app.set('#f-amount', '650');
+    app.set('#f-memo', '学食のカレー');
+    app.click('#f-save');
+    eq(app.entries()[0].memo, '学食のカレー');
+    openList(app);
+    eq(app.text('#entry-list .entry .title'), '学食のカレー');
+    eq(app.text('#entry-list .entry .memo'), '🍙 食費・💴 現金', 'カテゴリとはらい方は下に小さく');
+  });
+  test('内容がないときは、カテゴリ名を大きく出す', async () => {
+    const app = await loadApp({ data: base({ entries: [out('2026-10-05', 800, 'paypay', '日用品')] }) });
+    openList(app);
+    eq(app.text('#entry-list .entry .title'), '日用品');
+  });
+  test('「内容」の欄は、金額のすぐ下にある', async () => {
+    const app = await loadApp({ data: base() });
+    const inputs = app.qa('#add-card input').map((i) => i.id);
+    eq(inputs.indexOf('f-memo'), inputs.indexOf('f-amount') + 1);
+  });
+  test('一覧の記録をタップすると「記録を直す」画面が開き、今の内容が入っている', async () => {
+    const app = await loadApp({ data: base({ entries: [lunch()] }) });
+    openList(app);
+    app.click('#entry-list [data-edit]');
+    ok(app.q('#page-add').classList.contains('on'), '記録の画面が開く');
+    eq(app.text('#add-title'), '記録を直す ✏️');
+    eq([app.q('#f-amount').value, app.q('#f-memo').value, app.q('#f-date').value], ['800', 'コンビニでお昼', '2026-10-05']);
+    ok(app.q('#f-method [data-id="cash"]').classList.contains('on') && app.q('#f-cats [data-id="食費"]').classList.contains('on'));
+    eq(app.q('#edit-buttons').hidden, false, '「やめる」「削除する」が出る');
+  });
+  test('金額・内容・日付・カテゴリ・はらい方をぜんぶ直せる', async () => {
+    const app = await loadApp({ data: base({ entries: [lunch()] }) });
+    openList(app);
+    app.click('#entry-list [data-edit]');
+    app.set('#f-amount', '1200'); app.set('#f-memo', 'ランチ（友だちと）'); app.set('#f-date', '2026-10-06');
+    app.click('#f-cats [data-id="交際費"]');
+    app.click('#f-method [data-id="paypay"]');
+    app.click('#f-save');
+    const e = app.entries()[0];
+    eq([e.id, e.amount, e.memo, e.date, e.category, e.method], ['L', 1200, 'ランチ（友だちと）', '2026-10-06', '交際費', 'paypay']);
+    eq(app.entries().length, 1, 'ふえずに上書きされる');
+    eq([app.ev("balance('cash')"), app.ev("balance('paypay')")], [5000, -1200], '残高も直る');
+    ok(app.q('#page-review').classList.contains('on'), '保存したら一覧にもどる');
+    eq(app.text('#entry-list .entry .title'), 'ランチ（友だちと）');
+  });
+  test('支出を収入や移動に変えられる', async () => {
+    const app = await loadApp({ data: base({ entries: [lunch()] }) });
+    openList(app);
+    app.click('#entry-list [data-edit]');
+    app.click('#add-toggle [data-type="move"]');
+    app.click('#f-from [data-id="bank"]'); app.click('#f-to [data-id="cash"]');
+    app.click('#f-save');
+    const e = app.entries()[0];
+    eq([e.type, e.from, e.to, e.method, e.category], ['move', 'bank', 'cash', undefined, undefined]);
+  });
+  test('「やめる」なら変わらず、画面も元にもどる', async () => {
+    const app = await loadApp({ data: base({ entries: [lunch()] }) });
+    openList(app);
+    app.click('#entry-list [data-edit]');
+    app.set('#f-amount', '99999');
+    app.click('#f-cancel');
+    eq(app.entries()[0].amount, 800);
+    app.tab('add');
+    eq([app.text('#add-title'), app.q('#f-amount').value, app.q('#edit-buttons').hidden], ['記録する ✏️', '', true]);
+  });
+  test('直している途中でタブを切りかえると、直すのをやめる', async () => {
+    const app = await loadApp({ data: base({ entries: [lunch()] }) });
+    openList(app);
+    app.click('#entry-list [data-edit]');
+    app.tab('home');
+    app.tab('add');
+    app.set('#f-amount', '500');
+    app.click('#f-save');
+    eq(app.entries().length, 2, '新しい記録としてふえる（前の記録は書きかえない）');
+    eq(app.entries()[0].amount, 800);
+  });
+  test('「記録を直す」画面から削除できる（「いいえ」なら消さない）', async () => {
+    const app = await loadApp({ data: base({ entries: [lunch()] }) });
+    openList(app);
+    app.click('#entry-list [data-edit]');
+    app.w.__confirmAnswer = false;
+    app.click('#f-delete');
+    eq(app.entries().length, 1);
+    app.w.__confirmAnswer = true;
+    app.click('#f-delete');
+    eq([app.entries().length, app.toast()], [0, '削除しました']);
+    ok(app.q('#page-review').classList.contains('on'), '削除したら一覧にもどる');
+  });
+  test('一覧の「×」でも削除できる', async () => {
+    const app = await loadApp({ data: base({ entries: [lunch()] }) });
+    openList(app);
+    app.click('#entry-list [data-del]');
+    eq(app.entries().length, 0);
+    ok(app.q('#page-review').classList.contains('on'), '「×」では直す画面は開かない');
+  });
+  test('自動で記録された給料も直せる（あとから自動で書きかえられない）', async () => {
+    const app = await loadApp({ data: base({ shifts: [shift('2026-08-05')] }) });
+    openList(app);
+    app.click('#page-review .month button[data-move="-1"]');
+    app.click('#entry-list [data-edit]');
+    eq(app.q('#add-toggle').hidden, true, '支出・収入の切りかえは出さない');
+    eq(app.q('#auto-note').hidden, false, '自動の記録だと知らせる');
+    app.set('#f-amount', '5300'); app.set('#f-memo', 'カフェの給料（税金引かれた）');
+    app.click('#f-save');
+    const p = app.auto('pay:')[0];
+    eq([p.amount, p.memo, p.edited, p.autoKey], [5300, 'カフェの給料（税金引かれた）', true, 'pay:j1:2026-09-25']);
+    app.tab('add');
+    eq(app.q('#add-toggle').hidden, false, 'ふつうの記録画面にもどる');
+  });
+  test('自動の記録を「直す」画面から削除すると、もう一度つくられない', async () => {
+    const app = await loadApp({ data: base({ shifts: [shift('2026-08-05')] }) });
+    openList(app);
+    app.click('#page-review .month button[data-move="-1"]');
+    app.click('#entry-list [data-edit]');
+    app.click('#f-delete');
+    const again = await loadApp({ keep: true });
+    eq(again.auto('pay:').length, 0);
+  });
+});
+
+// =====================================================================
+// 5か月分（2026年6月〜10月）をふだんどおりに使ったときのテスト
+// 毎週日曜にその週の分を記録してアプリを開く、を10月31日までくりかえす。
+// 答え合わせの金額は、アプリとは別にここで計算する。
+group('5か月分のデータで使ってみる', () => {
+  // ---- 日付の道具 ----
+  const fmt = (y, m, d) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const last = (y, m) => new Date(y, m, 0).getDate();
+  const days = (from, to) => {
+    const out = [];
+    for (let d = new Date(from + 'T00:00'); fmt(d.getFullYear(), d.getMonth() + 1, d.getDate()) <= to; d.setDate(d.getDate() + 1)) {
+      out.push({ date: fmt(d.getFullYear(), d.getMonth() + 1, d.getDate()), wd: d.getDay(), day: d.getDate() });
+    }
+    return out;
+  };
+  const payDay = (date, closing, offset, payday) => {
+    let [y, m, d] = date.split('-').map(Number);
+    if (d > Math.min(closing, last(y, m))) m += 1;
+    m += offset;
+    while (m > 12) { m -= 12; y += 1; }
+    return fmt(y, m, Math.min(payday, last(y, m)));
+  };
+  // 決まった順番で出てくる「でたらめな数」（毎回同じ結果になる）
+  let seed = 20260601;
+  const rand = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  const pick = (min, max, step = 10) => Math.round((min + rand() * (max - min)) / step) * step;
+
+  // ---- 設定 ----
+  const SINCE = '2026-06-01', END = '2026-10-31';
+  const INITIAL = { bank: 200000, paypay: 3000, cash: 10000 };
+  const JOBS = [
+    { id: 'cafe', name: 'カフェ', wage: 1100, transport: 300, breakMin: 60, night: false, closing: 31, offset: 1, payday: 25 },
+    { id: 'izakaya', name: '居酒屋', wage: 1200, transport: 0, breakMin: 0, night: true, closing: 15, offset: 0, payday: 25 },
+  ];
+  const CARD = { set: true, closing: 15, offset: 1, payday: 10 };
+  const SUBS = [
+    { id: 'rent', name: '家賃', amount: 45000, day: 27, method: 'bankdebit', from: SINCE },
+    { id: 'phone', name: '携帯代', amount: 2980, day: 1, method: 'bankdebit', from: SINCE },
+    { id: 'netflix', name: 'Netflix', amount: 1490, day: 5, method: 'card', from: SINCE },
+    { id: 'gym', name: 'ジム', amount: 3000, day: 10, method: 'paypay', from: SINCE },
+    { id: 'spotify', name: 'Spotify', amount: 980, day: 31, method: 'card', from: '2026-08-15' }, // 途中から
+  ].map((s) => Object.assign({ category: '固定費' }, s));
+  const BUDGETS = { '食費': 25000, '日用品': 5000, '交通費': 5000, '交際費': 15000, '趣味': 10000 };
+  const BUDGET_TOTAL = Object.values(BUDGETS).reduce((a, b) => a + b, 0);
+  const yenT = (v) => (v < 0 ? '-' : '') + '¥' + Math.abs(v).toLocaleString('ja-JP');
+
+  // ---- 5か月分の記録とシフトをつくる ----
+  const entries = [], shifts = [];
+  let n = 0;
+  const add = (o) => entries.push(Object.assign({ id: 'g' + (n++), memo: '' }, o));
+  for (const { date, wd, day } of days(SINCE, END)) {
+    add({ type: 'out', method: rand() < 0.5 ? 'cash' : 'paypay', category: '食費', amount: pick(450, 950), date });
+    if (rand() < 0.25) add({ type: 'out', method: 'card', category: '食費', amount: pick(800, 3000), date }); // スーパー
+    if (day % 4 === 0) add({ type: 'out', method: 'card', category: '日用品', amount: pick(300, 1500), date });
+    if (wd === 0 || wd === 6) {
+      if (rand() < 0.6) add({ type: 'out', method: 'cash', category: '交際費', amount: pick(1500, 4500, 100), date });
+      if (rand() < 0.2) add({ type: 'out', method: 'card', category: '趣味', amount: pick(1000, 6000, 100), date });
+      if (rand() < 0.15) add({ type: 'out', method: 'card', category: '服・美容', amount: pick(2000, 8000, 100), date });
+    }
+    if (day === 1 || day === 15) add({ type: 'move', from: 'bank', to: 'cash', amount: 15000, date }); // ATM
+    if (day === 5 || day === 20) add({ type: 'move', from: 'bank', to: 'paypay', amount: 15000, date }); // チャージ
+    if (day === 20) add({ type: 'in', account: 'bank', category: '仕送り', amount: 50000, date });
+    if (wd === 2 || wd === 6) shifts.push({ id: 's' + date + 'c', jobId: 'cafe', date, start: '10:00', end: '16:00' });
+    if (wd === 5) {
+      shifts.push({ id: 's' + date + 'i', jobId: 'izakaya', date, start: '18:00', end: '23:30' });
+      add({ type: 'out', method: 'paypay', category: '交通費', amount: pick(200, 600), date });
+    }
+  }
+
+  // ---- 答え合わせの計算（アプリとは別に） ----
+  const pay = (s) => {
+    const j = JOBS.find((x) => x.id === s.jobId);
+    const [sh, sm] = s.start.split(':').map(Number), [eh, em] = s.end.split(':').map(Number);
+    const total = eh * 60 + em - (sh * 60 + sm);
+    const night = Math.max(0, eh * 60 + em - Math.max(22 * 60, sh * 60 + sm));
+    return (j.wage * (total - j.breakMin)) / 60 + (j.night ? (j.wage * 0.25 * night) / 60 : 0) + j.transport;
+  };
+  function expected(today) {
+    const manual = entries.filter((e) => e.date <= today);
+    // 定額支出
+    const subs = [];
+    for (const s of SUBS) {
+      for (let m = 6; m <= 10; m++) {
+        const date = fmt(2026, m, Math.min(s.day, last(2026, m)));
+        if (date >= s.from && date >= SINCE && date <= today) subs.push({ type: 'out', method: s.method, category: '固定費', amount: s.amount, date, name: s.name });
+      }
+    }
+    // 給料
+    const salary = {};
+    for (const s of shifts.filter((x) => x.date <= today)) {
+      const j = JOBS.find((x) => x.id === s.jobId);
+      const d = payDay(s.date, j.closing, j.offset, j.payday);
+      const k = `${j.name} ${d}`;
+      salary[k] = (salary[k] || 0) + pay(s);
+    }
+    const pays = Object.entries(salary).map(([k, v]) => ({ date: k.split(' ')[1], name: k.split(' ')[0], amount: Math.floor(v) }))
+      .filter((p) => p.date <= today).sort((a, b) => (a.date + a.name < b.date + b.name ? -1 : 1));
+    // クレカの引き落とし
+    const card = {};
+    for (const e of manual.concat(subs).filter((x) => x.type === 'out' && x.method === 'card')) {
+      const d = payDay(e.date, CARD.closing, CARD.offset, CARD.payday);
+      card[d] = (card[d] || 0) + e.amount;
+    }
+    const cardpays = Object.entries(card).filter(([d]) => d <= today && d >= SINCE).map(([date, amount]) => ({ date, amount })).sort((a, b) => (a.date < b.date ? -1 : 1));
+    // 残高
+    const all = manual.concat(subs);
+    const bal = Object.assign({}, INITIAL);
+    const acctOfMethod = { cash: 'cash', paypay: 'paypay', bankdebit: 'bank', card: null };
+    for (const e of all) {
+      if (e.type === 'out' && acctOfMethod[e.method]) bal[acctOfMethod[e.method]] -= e.amount;
+      if (e.type === 'in') bal[e.account] += e.amount;
+      if (e.type === 'move') { bal[e.from] -= e.amount; bal[e.to] += e.amount; }
+    }
+    bal.bank += pays.reduce((a, p) => a + p.amount, 0) - cardpays.reduce((a, p) => a + p.amount, 0);
+    return { bal, pays, cardpays, subs, all };
+  }
+
+  // ---- 実行 ----
+  test('6月1日から毎週日曜に記録してアプリを開くと、毎回の残高が合う', async () => {
+    const start = base({ since: SINCE, initial: INITIAL, jobs: JOBS, card: CARD, subs: SUBS, budgets: BUDGETS, shifts: [], entries: [] });
+    const openDays = [SINCE].concat(days(SINCE, END).filter((d) => d.wd === 0).map((d) => d.date)).concat([END]);
+    let app = null, prev = '0000-00-00';
+    const slow = [];
+    for (const day of openDays) {
+      // この日までの記録・シフトを足して（ふだんアプリで入れている分）、アプリを開く
+      const stored = app ? JSON.parse(localStorage.getItem(KEY)) : start;
+      stored.entries.push(...entries.filter((e) => e.date > prev && e.date <= day));
+      stored.shifts.push(...shifts.filter((s) => s.date > prev && s.date <= day));
+      localStorage.setItem(KEY, JSON.stringify(stored));
+      const t0 = performance.now();
+      app = await loadApp({ keep: true, today: day });
+      const ms = performance.now() - t0;
+      if (ms > 1500) slow.push(`${day}: ${Math.round(ms)}ms`);
+      prev = day;
+      const want = expected(day).bal;
+      const got = { bank: app.ev("balance('bank')"), paypay: app.ev("balance('paypay')"), cash: app.ev("balance('cash')") };
+      eq(got, want, `${day} に開いたときの残高`);
+      eq(app.w.__errors, [], `${day} にエラー`);
+    }
+    eq(slow, [], '開くのに時間がかかりすぎた日');
+    window.__scenarioApp = app;
+  });
+
+  const final = () => { if (!window.__scenarioApp) throw new Fail('前のテストが失敗したので確認できません'); return window.__scenarioApp; };
+  test('給料が、給料日ごとに1回ずつ正しい金額で記録されている', async () => {
+    const app = final();
+    const got = app.auto('pay:').map((e) => ({ date: e.date, name: e.memo.replace('の給料', ''), amount: e.amount }))
+      .sort((a, b) => (a.date + a.name < b.date + b.name ? -1 : 1));
+    eq(got, expected(END).pays);
+    eq(got.length, 9, 'カフェ4回（7〜10月）＋居酒屋5回（6〜10月）');
+  });
+  test('クレカの引き落としが、支払日ごとに1回ずつ正しい金額で記録されている', async () => {
+    const app = final();
+    eq(app.auto('card:').map((e) => ({ date: e.date, amount: e.amount })), expected(END).cardpays);
+    eq(app.auto('card:').map((e) => e.date), ['2026-07-10', '2026-08-10', '2026-09-10', '2026-10-10']);
+  });
+  test('定額支出が、毎月1回ずつ記録されている（途中から始めたものは、その月から）', async () => {
+    const app = final();
+    const got = app.auto('sub:').map((e) => `${e.memo} ${e.date}`).sort();
+    eq(got, expected(END).subs.map((s) => `${s.name} ${s.date}`).sort());
+    eq(got.length, 4 * 5 + 3, '4つ×5か月＋Spotify 3か月');
+    const keys = app.auto('').map((e) => e.autoKey);
+    eq(keys.length, new Set(keys).size, '自動記録に重なりがない');
+  });
+  test('月ごとの支出の合計と「今月あと使えるお金」が合っている', async () => {
+    const app = final();
+    const all = expected(END).all.filter((e) => e.type === 'out');
+    for (const m of ['06', '07', '08', '09', '10']) {
+      const want = all.filter((e) => e.date.slice(5, 7) === m).reduce((a, e) => a + e.amount, 0);
+      app.ev(`view = new Date(2026, ${Number(m) - 1}, 1); render();`);
+      eq(app.text('#sum-out'), '¥' + want.toLocaleString('ja-JP'), `${Number(m)}月の支出`);
+      const used = all.filter((e) => e.date.slice(5, 7) === m && e.category !== '固定費').reduce((a, e) => a + e.amount, 0);
+      eq(app.text('#left'), yenT(BUDGET_TOTAL - used), `${Number(m)}月のあと使えるお金`);
+    }
+  });
+  test('銀行の月末残高のグラフが、5か月分正しく出ている', async () => {
+    const app = final();
+    app.ev('view = new Date(2026, 9, 1); render();');
+    const want = ['06', '07', '08', '09', '10'].map((m) => {
+      const endDay = fmt(2026, Number(m), last(2026, Number(m)));
+      return yenT(expected(endDay).bal.bank);
+    });
+    const texts = app.qa('#chart-balance text').map((t) => t.textContent).filter((t) => t.includes('¥'));
+    eq(texts, want);
+  });
+  test('11月の見込みが合っている（10月のシフト・クレカ・定額支出）', async () => {
+    const app = final();
+    const f = app.ev("forecast('2026-11')");
+    const cafeOct = shifts.filter((s) => s.jobId === 'cafe' && s.date.startsWith('2026-10')).reduce((a, s) => a + pay(s), 0);
+    const izaLate = shifts.filter((s) => s.jobId === 'izakaya' && s.date >= '2026-10-16').reduce((a, s) => a + pay(s), 0);
+    eq(f.pays.map((p) => [p.label, p.amount]).sort(), [['カフェ', Math.floor(cafeOct)], ['居酒屋', Math.floor(izaLate)]].sort());
+    const cardNov = expected(END).all.filter((e) => e.type === 'out' && e.method === 'card' && e.date >= '2026-09-16' && e.date <= '2026-10-15').reduce((a, e) => a + e.amount, 0);
+    eq(f.debits.map((d) => [d.label, d.date, d.amount]), [['携帯代', '2026-11-01', 2980], ['クレカ', '2026-11-10', cardNov], ['家賃', '2026-11-27', 45000]]);
+  });
+  test('支出の内訳のグラフの合計が、その月の支出と同じ', async () => {
+    const app = final();
+    app.ev('view = new Date(2026, 9, 1); render();');
+    const legend = app.qa('#chart-donut .donut-legend .row').map((r) => Number(r.children[1].firstChild.textContent.replace(/[¥,\s]/g, '')));
+    eq('¥' + legend.reduce((a, b) => a + b, 0).toLocaleString('ja-JP'), app.text('#sum-out'));
+  });
+  test('一覧・シフト・ふりかえり・設定のどの画面も、エラーなく開ける', async () => {
+    const app = final();
+    for (const t of ['add', 'cal', 'review', 'settings', 'home']) app.tab(t);
+    app.click('#review-toggle [data-view="list"]');
+    ok(app.qa('#entry-list .entry').length > 50, '10月の一覧が出ている');
+    eq(app.w.__errors, []);
+    window.__scenario = {
+      entries: app.data().entries.length,
+      shifts: app.data().shifts.length,
+      balances: { bank: app.ev("balance('bank')"), paypay: app.ev("balance('paypay')"), cash: app.ev("balance('cash')") },
+      pays: app.auto('pay:').length, cardpays: app.auto('card:').length, subs: app.auto('sub:').length,
+      data: app.data(),
+    };
   });
 });
 
