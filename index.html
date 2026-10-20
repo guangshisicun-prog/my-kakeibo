@@ -5,54 +5,77 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="家計簿">
-<meta name="theme-color" content="#fff7f3">
-<title>わたしの家計簿</title>
+<meta name="theme-color" content="#0d0a0c">
+<title>my家計簿</title>
+<!-- 見出しの飾り文字（UnifrakturMaguntia）と、クラシックな明朝体（Shippori Mincho）。
+     ネットにつながっていないときは、iPhoneに入っている明朝体で表示される -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;700&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
 <style>
+  /* ゴシック調：黒を土台に、深い赤と金色 */
   :root {
-    --bg: #fff7f3;
-    --card: #ffffff;
-    --text: #4a3f3c;
-    --sub: #9a8d89;
-    --line: #f1e4df;
-    --pink: #f59bab;
-    --pink-soft: #fde4e9;
-    --mint: #7ccbb4;
-    --mint-soft: #ddf4ec;
-    --blue: #8fb5e8;
-    --blue-soft: #e3edfb;
-    --yellow: #f7c86b;
-    --yellow-soft: #fdf1d6;
-    --red: #e86a6a;
-    --radius: 20px;
+    color-scheme: dark;
+    --bg: #0d0a0c;
+    --card: #191214;
+    --card-2: #221a1c;
+    --text: #ecdfc6;
+    --sub: #a0927e;
+    --line: #3c2c2c;
+    --gold: #c9a45c;
+    --gold-line: rgba(201, 164, 92, .3);
+    --pink: #8e1a2e;
+    --pink-soft: #35121a;
+    --mint: #b08a43;
+    --mint-soft: #33280f;
+    --blue: #5e3f7e;
+    --blue-soft: #241a2e;
+    --yellow: #d9822b;
+    --yellow-soft: #33280f;
+    --red: #e0606f;
+    --plus: #d9b56a;
+    --radius: 4px;
     /* グラフの色 */
-    --c-bank: #2a78d6;
-    --c-bank-soft: #a9c8ee;
+    --c-bank: #c9a45c;
+    --c-bank-soft: #5e4c2c;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--text); }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif;
+    font-family: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
     padding: env(safe-area-inset-top) 16px calc(90px + env(safe-area-inset-bottom));
     max-width: 520px; margin: 0 auto;
+    background: radial-gradient(ellipse at top, #241519 0%, var(--bg) 60%) fixed;
   }
-  h1 { font-size: 20px; margin: 20px 0 12px; }
-  h2 { font-size: 16px; margin: 0 0 12px; }
-  h3 { font-size: 14px; margin: 14px 0 4px; color: var(--sub); }
-  .card { background: var(--card); border-radius: var(--radius); padding: 18px; margin-bottom: 14px; box-shadow: 0 2px 10px rgba(200,150,140,.08); }
+  h1 {
+    font-family: "UnifrakturMaguntia", "Shippori Mincho", "Hiragino Mincho ProN", serif;
+    font-weight: 400; font-size: 30px; color: var(--gold); letter-spacing: .02em;
+    margin: 22px 0 14px; padding-bottom: 8px; border-bottom: 3px double var(--gold-line);
+  }
+  h2 { font-size: 16px; margin: 0 0 12px; color: var(--gold); letter-spacing: .08em; }
+  h3 { font-size: 14px; margin: 14px 0 4px; color: var(--sub); letter-spacing: .05em; }
+  /* カードは金の細い二重線でふちどり、四すみに小さな飾り */
+  .card {
+    position: relative; background: var(--card); border-radius: var(--radius); padding: 20px 18px; margin-bottom: 16px;
+    border: 1px solid var(--gold-line); box-shadow: inset 0 0 0 3px var(--card), inset 0 0 0 4px rgba(201, 164, 92, .12);
+  }
+  .card::before, .card::after { content: '✦'; position: absolute; font-size: 9px; color: var(--gold); opacity: .7; line-height: 1; }
+  .card::before { top: 5px; left: 6px; }
+  .card::after { bottom: 5px; right: 6px; }
   .muted { color: var(--sub); font-size: 13px; }
   .big { font-size: 34px; font-weight: 700; letter-spacing: .5px; }
   .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .line-row { padding: 6px 0; }
   .minus { color: var(--red); }
-  .plus { color: #3fa889; }
-  .small-btn { border: 2px solid var(--line); background: #fff; border-radius: 99px; padding: 6px 12px; font-size: 13px; color: var(--text); font-family: inherit; flex-shrink: 0; }
+  .plus { color: var(--plus); }
+  .small-btn { border: 1px solid var(--gold-line); background: transparent; border-radius: var(--radius); padding: 6px 12px; font-size: 13px; color: var(--text); font-family: inherit; flex-shrink: 0; }
   .sep { border-top: 1px dashed var(--line); margin-top: 8px; padding-top: 8px; }
 
   /* 月の切り替え */
-  .month { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 4px 0 14px; font-weight: 700; }
-  .month button { border: none; background: var(--card); width: 36px; height: 36px; border-radius: 50%; font-size: 16px; color: var(--text); box-shadow: 0 2px 6px rgba(0,0,0,.05); }
+  .month { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 4px 0 14px; font-weight: 700; color: var(--gold); letter-spacing: .05em; }
+  .month button { border: 1px solid var(--gold-line); background: var(--card); width: 36px; height: 36px; border-radius: 50%; font-size: 16px; color: var(--gold); }
 
   /* 残高 */
   .acct { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px dashed var(--line); }
@@ -62,40 +85,40 @@
   .acct-total { border-top: 2px solid var(--line); margin-top: 4px; padding-top: 10px; }
 
   /* 見込み */
-  .forecast-end { background: var(--blue-soft); border-radius: 14px; padding: 12px 14px; margin-top: 12px; }
+  .forecast-end { background: var(--blue-soft); border: 1px solid var(--gold-line); border-radius: var(--radius); padding: 12px 14px; margin-top: 12px; }
   .forecast-end b { font-size: 22px; }
 
   /* 予算バー */
-  .bar { height: 12px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 6px 0 2px; }
-  .bar > div { height: 100%; border-radius: 99px; background: var(--mint); transition: width .3s; }
+  .bar { height: 8px; background: var(--line); border-radius: 1px; overflow: hidden; margin: 6px 0 2px; }
+  .bar > div { height: 100%; border-radius: 1px; background: var(--mint); transition: width .3s; }
   .bar > div.warn { background: var(--yellow); }
   .bar > div.over { background: var(--red); }
   .budget-item { padding: 10px 0; border-bottom: 1px dashed var(--line); }
   .budget-item:last-child { border-bottom: none; }
 
   /* 入力フォーム */
-  .toggle { display: flex; background: var(--line); border-radius: 99px; padding: 4px; margin-bottom: 16px; }
-  .toggle button { flex: 1; border: none; background: none; padding: 10px; border-radius: 99px; font-size: 15px; font-weight: 700; color: var(--sub); font-family: inherit; }
-  .toggle button.on { color: #fff; background: var(--pink); }
+  .toggle { display: flex; background: #120d0f; border: 1px solid var(--gold-line); border-radius: var(--radius); padding: 3px; margin-bottom: 16px; }
+  .toggle button { flex: 1; border: none; background: none; padding: 10px; border-radius: 2px; letter-spacing: .1em; font-size: 15px; font-weight: 700; color: var(--sub); font-family: inherit; }
+  .toggle button.on { color: var(--text); background: var(--pink); }
   .toggle button.on[data-type="in"] { background: var(--mint); }
   .toggle button.on[data-type="move"] { background: var(--blue); }
   label { display: block; font-size: 13px; color: var(--sub); margin: 12px 0 6px; }
   label.check { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 15px; }
   label.check input { width: 22px; height: 22px; -webkit-appearance: checkbox; appearance: auto; }
-  input, select { width: 100%; font-size: 17px; padding: 12px 14px; border: 2px solid var(--line); border-radius: 14px; background: #fff; color: var(--text); font-family: inherit; -webkit-appearance: none; appearance: none; }
-  input:focus, select:focus { outline: none; border-color: var(--pink); }
+  input, select { width: 100%; font-size: 17px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card-2); color: var(--text); font-family: inherit; -webkit-appearance: none; appearance: none; }
+  input:focus, select:focus { outline: none; border-color: var(--gold); }
   input.amount { font-size: 28px; font-weight: 700; text-align: right; }
   .two { display: flex; gap: 10px; }
   .two > div { flex: 1; min-width: 0; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-  .chip { border: 2px solid var(--line); background: #fff; padding: 8px 12px; border-radius: 99px; font-size: 14px; color: var(--text); font-family: inherit; }
-  .chip.on { border-color: var(--pink); background: var(--pink-soft); font-weight: 700; }
-  .t-in .chip.on { border-color: var(--mint); background: var(--mint-soft); }
-  .t-move .chip.on { border-color: var(--blue); background: var(--blue-soft); }
-  .btn { width: 100%; border: none; padding: 16px; border-radius: 99px; font-size: 17px; font-weight: 700; color: #fff; background: var(--pink); margin-top: 20px; font-family: inherit; }
-  .btn.sub { background: var(--card); color: var(--text); border: 2px solid var(--line); margin-top: 10px; }
-  .btn.mint { background: var(--mint); }
-  .btn.blue { background: var(--blue); }
+  .chip { border: 1px solid var(--line); background: var(--card-2); padding: 8px 12px; border-radius: var(--radius); font-size: 14px; color: var(--text); font-family: inherit; }
+  .chip.on { border-color: var(--gold); background: var(--pink-soft); font-weight: 700; }
+  .t-in .chip.on { border-color: var(--gold); background: var(--mint-soft); }
+  .t-move .chip.on { border-color: var(--gold); background: var(--blue-soft); }
+  .btn { width: 100%; border: 1px solid var(--gold-line); padding: 16px; border-radius: var(--radius); font-size: 17px; font-weight: 700; letter-spacing: .15em; color: var(--text); background: linear-gradient(var(--pink), #5c0f1d); margin-top: 20px; font-family: inherit; }
+  .btn.sub { background: transparent; color: var(--text); border: 1px solid var(--line); margin-top: 10px; }
+  .btn.mint { background: linear-gradient(var(--mint), #6e5424); }
+  .btn.blue { background: linear-gradient(var(--blue), #3a2650); }
 
   /* 一覧 */
   .entry { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px dashed var(--line); cursor: pointer; }
@@ -106,11 +129,11 @@
   .entry .info .memo { font-size: 11px; color: var(--sub); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .entry .amt { font-size: 16px; font-weight: 700; color: var(--text); white-space: nowrap; }
   .entry .amt.minus { color: var(--red); }
-  .entry .amt.plus { color: #3fa889; }
+  .entry .amt.plus { color: var(--plus); }
   .entry .del { border: none; background: none; color: var(--sub); font-size: 18px; padding: 6px; }
-  .day { font-size: 12px; color: var(--sub); margin: 12px 0 0; font-weight: 700; }
+  .day { font-size: 12px; color: var(--gold); margin: 14px 0 0; font-weight: 700; letter-spacing: .05em; }
   .empty { text-align: center; color: var(--sub); padding: 24px 0; font-size: 14px; }
-  .tag { display: inline-block; font-size: 10px; background: var(--yellow-soft); color: #a07a2a; border-radius: 99px; padding: 1px 6px; margin-left: 4px; vertical-align: 1px; }
+  .tag { display: inline-block; font-size: 10px; background: var(--yellow-soft); color: var(--gold); border-radius: 2px; padding: 1px 6px; margin-left: 4px; vertical-align: 1px; }
 
   /* グラフ */
   .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -130,10 +153,10 @@
   .cal .wd { text-align: center; font-size: 11px; color: var(--sub); padding-bottom: 4px; }
   .cal .wd:first-child { color: var(--red); }
   .cal .wd:last-child { color: var(--blue); }
-  .cal .d { min-height: 54px; border: 2px solid transparent; border-radius: 12px; background: #fff; padding: 4px 2px; font-size: 13px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: inherit; color: var(--text); }
+  .cal .d { min-height: 54px; border: 1px solid transparent; border-radius: var(--radius); background: var(--card-2); padding: 4px 2px; font-size: 13px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: inherit; color: var(--text); }
   .cal .d.blank { background: none; }
-  .cal .d.today .n { background: var(--pink); color: #fff; border-radius: 99px; padding: 0 6px; font-weight: 700; }
-  .cal .d.sel { border-color: var(--pink); }
+  .cal .d.today .n { background: var(--pink); color: var(--text); border-radius: 2px; padding: 0 6px; font-weight: 700; }
+  .cal .d.sel { border-color: var(--gold); }
   .cal .dots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; }
   .cal .dot { width: 7px; height: 7px; border-radius: 50%; }
   .cal .mark { font-size: 11px; line-height: 1; }
@@ -149,17 +172,17 @@
   .item .info { flex: 1; min-width: 0; }
 
   /* 下のタブ */
-  nav { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,.95); backdrop-filter: blur(10px); border-top: 1px solid var(--line); display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
+  nav { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(13, 10, 12, .95); backdrop-filter: blur(10px); border-top: 1px solid var(--gold-line); display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
   nav button { flex: 1; border: none; background: none; padding: 10px 0 8px; font-size: 11px; color: var(--sub); display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: inherit; }
-  nav button .i { font-size: 22px; filter: grayscale(1); opacity: .6; }
-  nav button.on { color: var(--pink); font-weight: 700; }
-  nav button.on .i { filter: none; opacity: 1; }
+  nav button .i { font-size: 22px; filter: grayscale(1); opacity: .45; }
+  nav button.on { color: var(--gold); font-weight: 700; }
+  nav button.on .i { filter: grayscale(1) sepia(1) saturate(1.6) brightness(1.05); opacity: 1; }
 
   .page { display: none; }
   .page.on { display: block; }
   [hidden] { display: none !important; }
 
-  .toast { position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--text); color: #fff; padding: 10px 18px; border-radius: 99px; font-size: 14px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 20; white-space: nowrap; }
+  .toast { position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: #241a1c; color: var(--text); border: 1px solid var(--gold-line); padding: 10px 18px; border-radius: var(--radius); font-size: 14px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 20; white-space: nowrap; }
   .toast.show { opacity: .92; }
 </style>
 </head>
@@ -167,7 +190,7 @@
 
 <!-- ホーム -->
 <section class="page on" id="page-home">
-  <h1>わたしの家計簿 🐷</h1>
+  <h1 id="home-title">my家計簿</h1>
 
   <div class="card">
     <h2>いまの残高</h2>
@@ -407,7 +430,7 @@ const CATS = {
   ],
 };
 // グラフでカテゴリを見分ける色（色の見え方が人とちがっても区別しやすい順番）
-const CAT_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
+const CAT_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'];
 // 定額支出はぜんぶ「固定費」。固定費は予算の計算から外す
 const FIXED = '固定費';
 const BUDGET_CATS = CATS.out.filter((c) => c.name !== FIXED);
@@ -422,7 +445,7 @@ const METHODS = [
   { id: 'card', name: 'クレカ', icon: '💳', acct: null },
   { id: 'bankdebit', name: '銀行引き落とし', icon: '🏦', acct: 'bank' },
 ];
-const JOB_COLORS = ['#f59bab', '#7ccbb4', '#8fb5e8', '#f7c86b', '#c3a6e6', '#f2a37b'];
+const JOB_COLORS = ['#b33a4c', '#c9a45c', '#7d5ba6', '#4f8a8b', '#c97b4a', '#8a9a5b'];
 const KEY = 'kakeibo-data-v1';
 
 // ===== 小さな道具 =====

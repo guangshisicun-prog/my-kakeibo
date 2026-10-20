@@ -642,6 +642,19 @@ group('月の切りかえ・そのほか', () => {
     app.tab('cal'); app.tab('settings');
     eq(app.q('#hack'), null, '名前がHTMLとして動いてしまっています');
   });
+  test('ホームの見出しは「my家計簿」だけ（絵文字なし）', async () => {
+    const app = await loadApp({ data: base() });
+    eq(app.text('#home-title'), 'my家計簿');
+    eq(app.w.document.title, 'my家計簿', 'ページのタイトルもそろえる');
+  });
+  test('ゴシック調のデザイン（黒い背景・金色の飾り文字の見出し・明朝体）になっている', async () => {
+    const app = await loadApp({ data: base() });
+    const css = (el, p) => app.w.getComputedStyle(el).getPropertyValue(p);
+    eq(css(app.w.document.documentElement, '--bg').trim(), '#0d0a0c', '背景は黒');
+    ok(css(app.q('#home-title'), 'font-family').includes('UnifrakturMaguntia'), '見出しは飾り文字');
+    eq(css(app.q('#home-title'), 'color'), 'rgb(201, 164, 92)', '見出しは金色');
+    ok(css(app.w.document.body, 'font-family').includes('Mincho'), '文字は明朝体');
+  });
   test('ホームの見込みは、予算の下にある', async () => {
     const app = await loadApp({ data: base() });
     const cards = app.qa('#page-home > .card');
