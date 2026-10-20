@@ -84,7 +84,7 @@ const shift = (date, start = '10:00', end = '15:00', jobId = 'j1') => ({ id: 's'
 const out = (date, amount, method = 'cash', category = '食費') => ({ id: 'e' + Math.random(), type: 'out', date, amount, method, category, memo: '' });
 
 // =====================================================================
-group('お給料の計算', () => {
+group('給料の計算', () => {
   const pay = async (s, j) => (await loadApp()).ev(`shiftPay(${JSON.stringify(s)}, ${JSON.stringify(j)})`);
   test('ふつうのシフト（10時〜15時・時給1,100円）は5,500円', async () => {
     eq(await pay(shift('2026-10-01'), job()), 5500);
@@ -152,17 +152,16 @@ group('残高', () => {
     ] }) });
     eq([app.ev("balance('bank')"), app.ev("balance('paypay')"), app.ev("balance('cash')")], [90000, 500, 14800]);
   });
-  test('「合わせる」で、ほんとうの残高に合わせられる', async () => {
+  test('ホームの残高には「合わせる」ボタンを出さない', async () => {
     const app = await loadApp({ data: base() });
-    app.w.__promptAnswer = '4321';
-    app.click('[data-adjust="cash"]');
-    eq(app.ev("balance('cash')"), 4321);
+    eq(app.qa('#balances button').length, 0);
+    ok(!app.text('#balances').includes('合わせる'));
   });
 });
 
 // =====================================================================
-group('お給料の自動記録', () => {
-  test('過ぎた給料日のお給料が、銀行に1回だけ記録される', async () => {
+group('給料の自動記録', () => {
+  test('過ぎた給料日の給料が、銀行に1回だけ記録される', async () => {
     const app = await loadApp({ data: base({ shifts: [shift('2026-08-05')] }) });
     app.tab('review'); app.tab('home'); // 何回か表示しなおしても…
     const pays = app.auto('pay:');
@@ -190,7 +189,7 @@ group('お給料の自動記録', () => {
     const app = await loadApp({ data: base({ since: '2026-10-01', shifts: [shift('2026-08-05')] }) });
     eq(app.auto('pay:').length, 0);
   });
-  test('カレンダーからシフトを足すと、記録ずみのお給料も増える', async () => {
+  test('カレンダーからシフトを足すと、記録ずみの給料も増える', async () => {
     const app = await loadApp({ data: base({ shifts: [shift('2026-08-05')] }) });
     app.tab('cal');
     app.click('#page-cal .month button[data-move="-1"]');
@@ -221,12 +220,12 @@ group('お給料の自動記録', () => {
     const again = await loadApp({ keep: true });
     eq(again.auto('pay:').length, 0);
   });
-  test('シフトを全部消すと、直していない自動のお給料も消える', async () => {
+  test('シフトを全部消すと、直していない自動の給料も消える', async () => {
     const app = await loadApp({ data: base({ shifts: [shift('2026-08-05')] }) });
     app.ev("data.shifts = []; render();");
     eq(app.auto('pay:').length, 0);
   });
-  test('バイト先を消しても、記録ずみのお給料は残る', async () => {
+  test('バイト先を消しても、記録ずみの給料は残る', async () => {
     const app = await loadApp({ data: base({ shifts: [shift('2026-08-05')] }) });
     app.tab('settings');
     app.click('[data-edit-job="j1"]');
@@ -327,7 +326,7 @@ group('毎月の定額支出（サブスク）', () => {
 
 // =====================================================================
 group('今月の見込み', () => {
-  test('月末の銀行残高の予想 ＝ いまの残高 ＋ これからのお給料 − これからの引き落とし', async () => {
+  test('月末の銀行残高の予想 ＝ いまの残高 ＋ これからの給料 − これからの引き落とし', async () => {
     const app = await loadApp({ data: base({
       shifts: [shift('2026-09-10')], // 10/25 に 5,500円（まだ）
       entries: [out('2026-09-01', 3000, 'card')], // 10/10 に引き落とし（記録ずみ）
@@ -421,10 +420,10 @@ group('予算', () => {
 
 // =====================================================================
 group('グラフ', () => {
-  test('収入と支出のグラフに6か月分の月が並ぶ', async () => {
+  test('収入と支出の棒グラフは出さない', async () => {
     const app = await loadApp({ data: base() });
-    const labels = app.qa('#chart-bars text').map((t) => t.textContent).filter((t) => t.endsWith('月'));
-    eq(labels, ['5月', '6月', '7月', '8月', '9月', '10月']);
+    eq(app.q('#chart-bars'), null);
+    ok(!app.text('#review-graph').includes('収入と支出'));
   });
   test('支出の内訳の％を足すと、だいたい100％', async () => {
     const app = await loadApp({ data: base({ entries: [out('2026-10-01', 1000), out('2026-10-01', 1000, 'cash', '趣味'), out('2026-10-01', 1000, 'cash', '日用品')] }) });
@@ -432,21 +431,28 @@ group('グラフ', () => {
     const total = pcts.reduce((a, b) => a + b, 0);
     ok(total >= 99 && total <= 101, `合計 ${total}%`);
   });
-  test('銀行残高のグラフは「記録をつけ始めた月」から', async () => {
+  test('銀行の月末残高は棒グラフで、月ごとの金額が出る（「記録をつけ始めた月」から）', async () => {
     const app = await loadApp({ data: base({ shifts: [shift('2026-08-05')] }) });
-    eq(app.qa('#chart-line circle[data-tip]').length, 3);
-    ok(app.text('#chart-line').includes('¥105,500'));
+    eq(app.qa('#chart-balance path').length, 3, '棒の数');
+    const texts = app.qa('#chart-balance text').map((t) => t.textContent);
+    eq(texts, ['¥100,000', '8月', '¥105,500', '9月', '¥105,500', '10月(今)']);
   });
-  test('グラフをタップすると数字が出る', async () => {
-    const app = await loadApp({ data: base() });
-    app.qa('#chart-bars [data-tip]')[5].dispatchEvent(new app.w.MouseEvent('click', { bubbles: true }));
-    ok(app.text('#chart-bars .chart-info').startsWith('10月　収入'));
+  test('残高がマイナスの月は、赤い棒で金額を出す', async () => {
+    const app = await loadApp({ data: base({ since: '2026-10-01', initial: { bank: -5000, paypay: 0, cash: 0 } }) });
+    const bar = app.q('#chart-balance rect');
+    ok(bar && bar.getAttribute('fill') === 'var(--red)', '赤い棒がありません');
+    ok(app.text('#chart-balance').includes('-¥5,000'));
   });
-  test('支出が0円の月でも、グラフがこわれない', async () => {
+  test('内訳のグラフをタップすると数字が出る', async () => {
+    const app = await loadApp({ data: base({ entries: [out('2026-10-01', 1000)] }) });
+    app.q('#chart-donut circle[data-tip]').dispatchEvent(new app.w.MouseEvent('click', { bubbles: true }));
+    eq(app.text('#chart-donut .chart-info'), '🍙 食費　¥1,000（100%）');
+  });
+  test('支出も残高も0円でも、グラフがこわれない', async () => {
     const app = await loadApp({ data: base({ since: '2026-10-01', initial: { bank: 0, paypay: 0, cash: 0 } }) });
     eq(app.w.__errors, []);
-    ok(!app.q('#chart-line').innerHTML.includes('NaN'), '残高グラフに NaN（計算できない数）が入っています');
-    ok(!app.q('#chart-bars').innerHTML.includes('NaN'), '棒グラフに NaN が入っています');
+    ok(!app.q('#chart-balance').innerHTML.includes('NaN'), '残高グラフに NaN（計算できない数）が入っています');
+    ok(app.text('#chart-balance').includes('¥0'));
   });
 });
 
@@ -470,7 +476,7 @@ group('月の切りかえ・そのほか', () => {
     const es = app.data().entries;
     eq([es[0].method, es[1].account], ['cash', 'bank']);
   });
-  test('前の版の「確定したお給料」は、直したもの扱いになる', async () => {
+  test('前の版の「確定した給料」は、直したもの扱いになる', async () => {
     const app = await loadApp({ data: base({ entries: [{ id: 'p', type: 'in', account: 'bank', category: 'バイト代', amount: 5300, date: '2026-09-25', payKey: 'j1:2026-09-25' }], shifts: [shift('2026-08-05')] }) });
     const p = app.auto('pay:');
     eq(p.map((e) => [e.amount, e.edited]), [[5300, true]]);
@@ -479,6 +485,23 @@ group('月の切りかえ・そのほか', () => {
     const app = await loadApp({ data: base({ jobs: [job({ name: '<img src=x id=hack>' })], shifts: [shift('2026-10-20')] }) });
     app.tab('cal'); app.tab('settings');
     eq(app.q('#hack'), null, '名前がHTMLとして動いてしまっています');
+  });
+  test('ホームの見込みは、予算の下にある', async () => {
+    const app = await loadApp({ data: base() });
+    const cards = app.qa('#page-home > .card');
+    const budget = cards.findIndex((c) => c.querySelector('#budget-list'));
+    const fc = cards.findIndex((c) => c.id === 'home-forecast');
+    ok(budget >= 0 && fc === budget + 1, `予算 ${budget} 番目・見込み ${fc} 番目`);
+  });
+  test('画面に「お給料」という言葉が出ない（「給料」にそろえる）', async () => {
+    const app = await loadApp({ data: base({ shifts: [shift('2026-08-05'), shift('2026-10-03')] }) });
+    let all = '';
+    for (const t of ['home', 'add', 'cal', 'review', 'settings']) { app.tab(t); all += app.w.document.body.innerText; }
+    app.click('#review-toggle [data-view="list"]');
+    app.click('#page-review .month button[data-move="-1"]');
+    all += app.text('#entry-list');
+    ok(!all.includes('お給料'), '「お給料」が出ています');
+    ok(all.includes('カフェの給料'), '自動記録のメモが「〜の給料」になっていません');
   });
   test('エラーが出ていない', async () => {
     const app = await loadApp({ data: base({ shifts: [shift('2026-08-05'), shift('2026-10-03', '22:00', '03:00')], entries: [out('2026-09-01', 3000, 'card')] }) });
@@ -517,7 +540,7 @@ group('設定画面の操作', () => {
     app.click('#j-save');
     eq([app.data().jobs.length, app.toast()], [0, '時給を入れてね']);
   });
-  test('バイト先を編集すると、見込みのお給料も変わる', async () => {
+  test('バイト先を編集すると、見込みの給料も変わる', async () => {
     const app = await loadApp({ data: base({ shifts: [shift('2026-10-03')] }) });
     app.tab('settings');
     app.click('[data-edit-job="j1"]');
@@ -552,7 +575,7 @@ group('設定画面の操作', () => {
     app.click('#i-save');
     const d = app.data();
     eq([d.since, d.initial], ['2026-10-01', { bank: 80000, paypay: 1234, cash: -500 }]);
-    // 9/25 のお給料は「つけ始めた日」より前になったので、自動記録から外れる
+    // 9/25 の給料は「つけ始めた日」より前になったので、自動記録から外れる
     eq([app.auto('pay:').length, app.ev("balance('bank')")], [0, 80000]);
   });
   test('定額支出の名前・金額が空なら保存しない', async () => {
@@ -577,7 +600,7 @@ group('設定画面の操作', () => {
 
 // =====================================================================
 group('シフトの画面の操作', () => {
-  test('シフトを消せる（自動のお給料も消える）', async () => {
+  test('シフトを消せる（自動の給料も消える）', async () => {
     const app = await loadApp({ data: base({ shifts: [shift('2026-08-05')] }) });
     app.tab('cal');
     app.click('#page-cal .month button[data-move="-1"]');
@@ -728,15 +751,6 @@ group('一覧と残高合わせの細かい操作', () => {
     const t = app.text('#entry-list');
     ['銀行 → お財布', '残高を合わせた', '+¥300', '📱 PayPayへ・おばあちゃん'].forEach((s) => ok(t.includes(s), `「${s}」が出ていません\n${t}`));
   });
-  test('残高合わせで、計算と同じ金額ならなにも足さない', async () => {
-    const app = await loadApp({ data: base() });
-    app.w.__promptAnswer = '5000';
-    app.click('[data-adjust="cash"]');
-    eq([app.entries().length, app.toast()], [0, 'ぴったり合っています✨']);
-    app.w.__promptAnswer = null;
-    app.click('[data-adjust="cash"]');
-    eq(app.entries().length, 0, 'キャンセルでも足さない');
-  });
   test('予算をこえたら「あと使えるお金」が赤くなる', async () => {
     const app = await loadApp({ data: base({ budgets: { '食費': 1000 }, entries: [out('2026-10-01', 1500), out('2026-10-02', 850, 'cash', '食費')] }) });
     eq(app.text('#left'), '-¥1,350');
@@ -750,7 +764,7 @@ group('一覧と残高合わせの細かい操作', () => {
     const app = await loadApp({ data: base({ since: '2026-10-01' }) });
     app.tab('review');
     app.click('#page-review .month button[data-move="-1"]');
-    ok(app.text('#chart-line').includes('記録をつけ始める前の月です'));
+    ok(app.text('#chart-balance').includes('記録をつけ始める前の月です'));
   });
 });
 

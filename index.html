@@ -27,9 +27,8 @@
     --red: #e86a6a;
     --radius: 20px;
     /* グラフの色 */
-    --c-in: #1baf7a;
-    --c-out: #eb6834;
     --c-bank: #2a78d6;
+    --c-bank-soft: #a9c8ee;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--text); }
@@ -117,8 +116,6 @@
   /* グラフ */
   .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
   .chart-info { min-height: 20px; font-size: 13px; text-align: center; margin: 6px 0 2px; }
-  .legend { display: flex; gap: 14px; justify-content: center; font-size: 12px; color: var(--sub); margin-top: 6px; }
-  .legend span { display: inline-flex; align-items: center; gap: 5px; }
   .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex-shrink: 0; }
   .donut-wrap { display: flex; gap: 14px; align-items: center; }
   .donut-wrap svg { width: 150px; flex-shrink: 0; }
@@ -176,8 +173,6 @@
     <div id="balances"></div>
   </div>
 
-  <div class="card" id="home-forecast"></div>
-
   <div class="month">
     <button data-move="-1">‹</button><span class="month-label"></span><button data-move="1">›</button>
   </div>
@@ -196,6 +191,8 @@
     <h2>カテゴリごとの予算</h2>
     <div id="budget-list"></div>
   </div>
+
+  <div class="card" id="home-forecast"></div>
 </section>
 
 <!-- 記録する -->
@@ -264,16 +261,12 @@
   </div>
   <div id="review-graph">
     <div class="card chart">
-      <h2>収入と支出（6か月）</h2>
-      <div id="chart-bars"></div>
-    </div>
-    <div class="card chart">
       <h2 id="donut-title">支出の内訳</h2>
       <div id="chart-donut"></div>
     </div>
     <div class="card chart">
       <h2>銀行の月末残高</h2>
-      <div id="chart-line"></div>
+      <div id="chart-balance"></div>
     </div>
   </div>
   <div id="review-list" hidden>
@@ -288,7 +281,7 @@
 
   <div class="card">
     <h2>🏦 最初の残高</h2>
-    <div class="muted">記録をつけ始めた日と、その日の残高を入れてください。お給料・引き落とし・サブスクの自動記録は、この日から始まります。</div>
+    <div class="muted">記録をつけ始めた日と、その日の残高を入れてください。給料・引き落とし・サブスクの自動記録は、この日から始まります。</div>
     <label>記録をつけ始めた日</label>
     <input type="date" id="i-since">
     <div id="initial-form"></div>
@@ -421,7 +414,6 @@ const KEY = 'kakeibo-data-v1';
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const yen = (n) => (n < 0 ? '-' : '') + '¥' + Math.abs(Math.round(n)).toLocaleString('ja-JP');
-const shortYen = (n) => (Math.abs(n) >= 10000 ? (Math.round(n / 1000) / 10).toLocaleString('ja-JP') + '万' : Math.round(n).toLocaleString('ja-JP'));
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
 const today = () => { const d = new Date(); return ymd(d.getFullYear(), d.getMonth() + 1, d.getDate()); };
@@ -517,7 +509,7 @@ function payDateOf(date, rule) {
   return ymd(y, m, Math.min(rule.payday, lastDay(y, m)));
 }
 
-// ===== お給料の計算 =====
+// ===== 給料の計算 =====
 const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 const jobOf = (id) => data.jobs.find((j) => j.id === id);
 const jobColor = (job) => JOB_COLORS[Math.max(0, data.jobs.indexOf(job)) % JOB_COLORS.length];
@@ -597,7 +589,7 @@ function autoRecord() {
     }
   }
   for (const g of payGroups()) {
-    upsert(g.key, { type: 'in', account: 'bank', category: 'バイト代', amount: g.amount, date: g.date, memo: `${g.name}のお給料` });
+    upsert(g.key, { type: 'in', account: 'bank', category: 'バイト代', amount: g.amount, date: g.date, memo: `${g.name}の給料` });
   }
   for (const g of cardGroups()) {
     upsert(g.key, { type: 'cardpay', amount: g.amount, date: g.date, memo: 'クレカの引き落とし' });
@@ -632,7 +624,7 @@ function forecastHtml(mk, withBank) {
   const line = (x, sign) => `<div class="row line-row"><span>${mdw(x.date).replace(/（.）/, '')}　${x.icon || '💼'} ${escapeHtml(x.label)}${x.done ? ' ✅' : ''}</span>
     <b class="${sign > 0 ? 'plus' : 'minus'}">${sign > 0 ? '+' : '-'}${yen(x.amount)}</b></div>`;
   let h = `<h2>🔮 ${m}月の見込み</h2>`;
-  h += `<h3>お給料（銀行に入る）　${yen(sum(f.pays))}</h3>`;
+  h += `<h3>給料（銀行に入る）　${yen(sum(f.pays))}</h3>`;
   h += f.pays.length ? f.pays.map((x) => line(x, 1)).join('') : '<div class="muted">この月の給料日はありません</div>';
   h += `<h3>引き落とし（銀行から出る）　${yen(sum(f.debits))}</h3>`;
   h += f.debits.length ? f.debits.map((x) => line(x, -1)).join('') : '<div class="muted">この月の引き落としはありません</div>';
@@ -644,7 +636,7 @@ function forecastHtml(mk, withBank) {
     const rest = (arr) => sum(arr.filter((x) => !x.done));
     const end = balance('bank') + rest(f.pays) - rest(f.debits);
     h += `<div class="forecast-end"><div class="row"><span>🏦 月末の銀行残高（予想）</span><b class="${end < 0 ? 'minus' : ''}">${yen(end)}</b></div>
-      <div class="muted">いまの銀行 ${yen(balance('bank'))} ＋ これからのお給料 ${yen(rest(f.pays))} − これからの引き落とし ${yen(rest(f.debits))}</div></div>`;
+      <div class="muted">いまの銀行 ${yen(balance('bank'))} ＋ これからの給料 ${yen(rest(f.pays))} − これからの引き落とし ${yen(rest(f.debits))}</div></div>`;
   }
   h += '<div class="muted" style="margin-top:8px">✅ は記録ずみ。それ以外は見込みです</div>';
   return h;
@@ -668,8 +660,7 @@ function renderHome() {
   $('#balances').innerHTML = ACCTS.map((a) => {
     const b = balance(a.id);
     total += b;
-    return `<div class="acct"><span>${a.icon}</span><span class="name">${a.name}</span><b class="${b < 0 ? 'minus' : ''}">${yen(b)}</b>
-      <button class="small-btn" data-adjust="${a.id}">合わせる</button></div>`;
+    return `<div class="acct"><span>${a.icon}</span><span class="name">${a.name}</span><b class="${b < 0 ? 'minus' : ''}">${yen(b)}</b></div>`;
   }).join('') + `<div class="acct acct-total"><span>💰</span><span class="name"><b>合計</b></span><b>${yen(total)}</b></div>`;
 
   $('#home-forecast').innerHTML = forecastHtml(today().slice(0, 7), true);
@@ -717,20 +708,6 @@ function renderHome() {
   }).join('');
   $('#budget-list').innerHTML = rows || '<div class="empty">まだ予算も記録もありません🌱</div>';
 }
-$('#balances').addEventListener('click', (ev) => {
-  const b = ev.target.closest('[data-adjust]');
-  if (!b) return;
-  const a = acctOf(b.dataset.adjust);
-  const now = balance(a.id);
-  const v = prompt(`${a.name}の、ほんとうの残高を入れてください\n（いまのアプリの計算：${yen(now)}）`, String(now));
-  if (v === null || v.trim() === '' || isNaN(Number(v))) return;
-  const diff = Math.round(Number(v)) - now;
-  if (!diff) return toast('ぴったり合っています✨');
-  data.entries.push({ id: uid(), type: 'adjust', account: a.id, amount: diff, date: today(), memo: '' });
-  save();
-  toast(`${a.name}の残高を合わせました`);
-  render();
-});
 
 // ===== 記録する =====
 const form = { type: 'out', method: 'cash', acct: 'bank', cat: CATS.out[0].name, from: 'bank', to: 'cash' };
@@ -884,47 +861,11 @@ function lastMonths(n) {
   }
   return out;
 }
-function niceMax(v) {
-  if (v <= 0) return 1000;
-  const p = 10 ** Math.floor(Math.log10(v));
-  const f = v / p;
-  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
-}
 // 上だけ角が丸い棒
 function barPath(x, y, w, h, color) {
   if (h <= 0) return '';
   const r = Math.min(4, h, w / 2);
   return `<path d="M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z" fill="${color}"/>`;
-}
-function renderBars() {
-  const months = lastMonths(6).map((mo) => {
-    const list = monthEntries(mo.mk);
-    return Object.assign(mo, { inc: sum(list.filter((e) => e.type === 'in')), out: sum(list.filter((e) => e.type === 'out')) });
-  });
-  const W = 340, H = 190, L = 40, R = 6, T = 10, B = 24;
-  const max = niceMax(Math.max(...months.map((x) => Math.max(x.inc, x.out))));
-  const ph = H - T - B;
-  const gw = (W - L - R) / months.length;
-  const bw = Math.min(16, (gw - 12) / 2);
-  let svg = '';
-  for (const k of [0, 0.5, 1]) {
-    const y = T + ph * (1 - k);
-    svg += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-width="1"/>
-      <text x="${L - 6}" y="${y + 4}" text-anchor="end" font-size="10" fill="var(--sub)">${shortYen(max * k)}</text>`;
-  }
-  months.forEach((x, i) => {
-    const cx = L + gw * i + gw / 2;
-    const hi = (x.inc / max) * ph, ho = (x.out / max) * ph;
-    svg += barPath(cx - bw - 1, T + ph - hi, bw, hi, 'var(--c-in)');
-    svg += barPath(cx + 1, T + ph - ho, bw, ho, 'var(--c-out)');
-    const bold = x.mk === monthKey();
-    svg += `<text x="${cx}" y="${H - 6}" text-anchor="middle" font-size="11" fill="${bold ? 'var(--text)' : 'var(--sub)'}" ${bold ? 'font-weight="700"' : ''}>${x.label}</text>`;
-    svg += `<rect x="${L + gw * i}" y="0" width="${gw}" height="${H}" fill="transparent" data-tip="${x.label}　収入 ${yen(x.inc)}／支出 ${yen(x.out)}／収支 ${(x.inc - x.out > 0 ? '+' : '') + yen(x.inc - x.out)}"/>`;
-  });
-  const cur = months[months.length - 1];
-  $('#chart-bars').innerHTML = `<svg viewBox="0 0 ${W} ${H}">${svg}</svg>
-    <div class="chart-info">${cur.label}　収入 ${yen(cur.inc)}／支出 ${yen(cur.out)}</div>
-    <div class="legend"><span><i class="sw" style="background:var(--c-in)"></i>収入</span><span><i class="sw" style="background:var(--c-out)"></i>支出</span></div>`;
 }
 function renderDonut() {
   const outs = monthEntries().filter((e) => e.type === 'out');
@@ -954,42 +895,36 @@ function renderDonut() {
       <span><i class="sw" style="background:${x.color}"></i>${x.name}</span><span>${yen(x.v)} <span class="muted">${Math.round((x.v / total) * 100)}%</span></span></div>`).join('')}</div>
   </div><div class="chart-info"></div>`;
 }
-function renderLine() {
+// 銀行の月末残高（棒の上に金額を出す）
+function renderBalanceBars() {
   const pts = lastMonths(6)
     .map((mo) => Object.assign(mo, { end: ymd(mo.y, mo.m, lastDay(mo.y, mo.m)) }))
     .filter((mo) => mo.end >= data.since && mo.mk <= today().slice(0, 7))
-    .map((mo) => Object.assign(mo, { v: balance('bank', mo.end) }));
+    .map((mo) => Object.assign(mo, { v: balance('bank', mo.end), now: mo.mk === today().slice(0, 7) }));
   if (!pts.length) {
-    $('#chart-line').innerHTML = '<div class="empty">記録をつけ始める前の月です</div>';
+    $('#chart-balance').innerHTML = '<div class="empty">記録をつけ始める前の月です</div>';
     return;
   }
-  const W = 340, H = 180, L = 40, R = 14, T = 14, B = 24;
+  const W = 340, H = 200, T = 22, B = 24, side = 4;
   const vals = pts.map((p) => p.v);
-  // 残高の動きが見えるように、上下のはばを残高に合わせる
-  const vMin = Math.min(...vals), vMax = Math.max(...vals);
-  const padV = Math.max((vMax - vMin) * 0.3, Math.abs(vMax) * 0.05, 1000);
-  const lo = Math.floor((vMin - padV) / 1000) * 1000, hi = Math.ceil((vMax + padV) / 1000) * 1000;
-  const ph = H - T - B;
-  const step = (W - L - R) / 5; // 6か月ぶんの横はば（いつも同じ間かく）
-  const offset = 6 - pts.length;
-  const X = (i) => L + step * (i + offset);
-  const Y = (v) => T + ph * (1 - (v - lo) / (hi - lo));
-  let svg = '';
-  for (const v of [lo, (lo + hi) / 2, hi]) {
-    svg += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-width="1"/>
-      <text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end" font-size="10" fill="var(--sub)">${shortYen(v)}</text>`;
-  }
-  if (pts.length > 1) svg += `<polyline points="${pts.map((p, i) => `${X(i)},${Y(p.v)}`).join(' ')}" fill="none" stroke="var(--c-bank)" stroke-width="2" stroke-linejoin="round"/>`;
+  const hi = Math.max(0, ...vals), lo = Math.min(0, ...vals);
+  const span = hi - lo || 1;
+  const ph = H - T - B - (lo < 0 ? 18 : 0); // マイナスの月があれば、下に金額を出すすきまをあける
+  const Y = (v) => T + ph * ((hi - v) / span);
+  const gw = (W - side * 2) / 6; // いつも6か月ぶんの横はば
+  const bw = Math.min(30, gw - 14);
+  let svg = `<line x1="${side}" x2="${W - side}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--line)" stroke-width="1"/>`;
   pts.forEach((p, i) => {
-    const isNow = p.mk === today().slice(0, 7);
-    svg += `<circle cx="${X(i)}" cy="${Y(p.v)}" r="4" fill="var(--c-bank)" stroke="#fff" stroke-width="2"/>`;
-    svg += `<text x="${X(i)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--sub)">${p.label}${isNow ? '(今)' : ''}</text>`;
-    svg += `<circle cx="${X(i)}" cy="${Y(p.v)}" r="16" fill="transparent" data-tip="${p.label}${isNow ? '（いま）' : '末'}の銀行残高　${yen(p.v)}"/>`;
+    const cx = side + gw * (i + 6 - pts.length) + gw / 2;
+    const top = Y(Math.max(p.v, 0)), h = Math.abs(Y(p.v) - Y(0));
+    const color = p.now ? 'var(--c-bank)' : 'var(--c-bank-soft)';
+    svg += p.v >= 0 ? barPath(cx - bw / 2, top, bw, h, color) : `<rect x="${cx - bw / 2}" y="${Y(0)}" width="${bw}" height="${h}" rx="4" fill="var(--red)"/>`;
+    const ly = p.v >= 0 ? top - 6 : Y(p.v) + 14;
+    svg += `<text x="${cx}" y="${ly}" text-anchor="middle" font-size="10.5" font-weight="700" fill="${p.v < 0 ? 'var(--red)' : 'var(--text)'}">${yen(p.v)}</text>`;
+    svg += `<text x="${cx}" y="${H - 6}" text-anchor="middle" font-size="11" fill="${p.now ? 'var(--text)' : 'var(--sub)'}" ${p.now ? 'font-weight="700"' : ''}>${p.label}${p.now ? '(今)' : ''}</text>`;
   });
-  const last = pts[pts.length - 1];
-  const lastLabel = last.mk === today().slice(0, 7) ? `${last.label}（いま）` : `${last.label}末`;
-  $('#chart-line').innerHTML = `<svg viewBox="0 0 ${W} ${H}">${svg}</svg>
-    <div class="chart-info">${lastLabel}の銀行残高　${yen(last.v)}</div>`;
+  $('#chart-balance').innerHTML = `<svg viewBox="0 0 ${W} ${H}">${svg}</svg>
+    <div class="muted" style="text-align:center">今月は、いまの残高です</div>`;
 }
 // グラフをタップすると、その数字が下に出る
 $('#review-graph').addEventListener('click', (ev) => {
@@ -1146,8 +1081,8 @@ $('#j-save').addEventListener('click', () => {
 $('#j-cancel').addEventListener('click', () => {
   if (editingJob) {
     const n = data.shifts.filter((s) => s.jobId === editingJob.id).length;
-    if (!confirm(`${editingJob.name}を消しますか？${n ? `\nこのバイト先のシフト${n}件も消えます（もう記録されたお給料は残ります）` : ''}`)) return;
-    // もう記録されたお給料は、消えないように「直したもの」あつかいにしておく
+    if (!confirm(`${editingJob.name}を消しますか？${n ? `\nこのバイト先のシフト${n}件も消えます（もう記録された給料は残ります）` : ''}`)) return;
+    // もう記録された給料は、消えないように「直したもの」あつかいにしておく
     data.entries.forEach((e) => { if (e.autoKey && e.autoKey.startsWith(`pay:${editingJob.id}:`)) e.edited = true; });
     data.shifts = data.shifts.filter((s) => s.jobId !== editingJob.id);
     data.jobs = data.jobs.filter((j) => j !== editingJob);
@@ -1272,9 +1207,9 @@ function render() {
   $$('.month-label').forEach((l) => (l.textContent = `${view.getFullYear()}年${view.getMonth() + 1}月`));
   renderHome();
   renderCal();
-  renderBars();
+
   renderDonut();
-  renderLine();
+  renderBalanceBars();
   renderList();
   if (page === 'settings') renderSettings();
 }
