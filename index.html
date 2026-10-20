@@ -193,6 +193,8 @@
   </div>
 
   <div class="card" id="home-forecast"></div>
+
+  <div class="card" id="home-subs"></div>
 </section>
 
 <!-- 記録する -->
@@ -341,6 +343,9 @@
       <div><label>金額（円）</label><input id="u-amount" type="number" inputmode="numeric" placeholder="0"></div>
       <div><label>毎月何日</label><select id="u-day"></select></div>
     </div>
+    <label>利用開始日</label>
+    <input id="u-from" type="date">
+    <div class="muted" style="margin-top:6px">この日から自動で記録します。前の日にすると、そこから今日までの分もまとめて記録します（「記録をつけ始めた日」より前はのぞく）。</div>
     <label>はらい方</label>
     <select id="u-method"></select>
     <label>カテゴリ</label>
@@ -707,6 +712,34 @@ function renderHome() {
     </div>`;
   }).join('');
   $('#budget-list').innerHTML = rows || '<div class="empty">まだ予算も記録もありません🌱</div>';
+
+  $('#home-subs').innerHTML = subsHtml();
+}
+// 毎月の定額支出の合計と内訳
+function subsHtml() {
+  const t = today();
+  const byAmount = (a, b) => b.amount - a.amount;
+  const active = data.subs.filter((s) => s.from <= t).sort(byAmount);
+  const upcoming = data.subs.filter((s) => s.from > t).sort((a, b) => (a.from < b.from ? -1 : 1));
+  const row = (s, note) => `<div class="row line-row"><span>${methodOf(s.method).icon} ${escapeHtml(s.name)}
+    <div class="muted">${note}</div></span><b>${yen(s.amount)}</b></div>`;
+  let h = '<h2>🔁 毎月の定額支出</h2>';
+  if (!data.subs.length) return h + '<div class="muted">「設定」で定額支出を登録すると、ここに出ます</div>';
+  h += `<div class="muted">毎月かかるお金の合計</div><div class="big">${yen(sum(active))}</div>`;
+  h += active.length
+    ? active.map((s) => row(s, `毎月${dayLabel(s.day)}・${methodOf(s.method).name}`)).join('')
+    : '<div class="muted">いま続いている定額支出はありません</div>';
+  if (active.length) {
+    h += '<h3>はらい方ごと</h3>' + METHODS.map((m) => {
+      const s = sum(active.filter((x) => x.method === m.id));
+      return s ? `<div class="row line-row"><span>${m.icon} ${m.name}</span><b>${yen(s)}</b></div>` : '';
+    }).join('');
+  }
+  if (upcoming.length) {
+    h += '<h3>これから始まるもの（合計に入っていません）</h3>' +
+      upcoming.map((s) => row(s, `${mdw(s.from).replace(/（.）/, '')}から・毎月${dayLabel(s.day)}・${methodOf(s.method).name}`)).join('');
+  }
+  return h;
 }
 
 // ===== 記録する =====
@@ -1019,7 +1052,7 @@ function renderSettings() {
   $('#sub-list').innerHTML = data.subs.length
     ? data.subs.map((s) => `<div class="item"><span>${methodOf(s.method).icon}</span>
         <div class="info"><b>${escapeHtml(s.name)}</b> ${yen(s.amount)}
-        <div class="muted">毎月${dayLabel(s.day)}・${methodOf(s.method).name}・${escapeHtml(s.category)}</div></div>
+        <div class="muted">毎月${dayLabel(s.day)}・${methodOf(s.method).name}・${escapeHtml(s.category)}<br>${mdw(s.from).replace(/（.）/, '')}${s.from.slice(0, 4) !== today().slice(0, 4) ? `（${s.from.slice(0, 4)}年）` : ''}から</div></div>
         <button class="small-btn" data-edit-sub="${s.id}">編集</button></div>`).join('')
     : '<div class="muted">まだ登録されていません</div>';
 
@@ -1114,6 +1147,7 @@ function openSubForm(sub) {
   $('#u-method').value = sub ? sub.method : 'card';
   $('#u-cat').innerHTML = CATS.out.map((c) => `<option value="${c.name}">${c.icon} ${c.name}</option>`).join('');
   $('#u-cat').value = sub ? sub.category : '趣味';
+  $('#u-from').value = sub ? sub.from : today();
   $('#u-cancel').textContent = sub ? 'この定額支出をやめる' : 'やめる';
   $('#sub-form').scrollIntoView({ behavior: 'smooth' });
 }
@@ -1127,12 +1161,15 @@ $('#u-save').addEventListener('click', () => {
   const amount = num($('#u-amount').value);
   if (!name) return toast('名前を入れてね');
   if (!amount) return toast('金額を入れてね');
-  const sub = editingSub || { id: uid(), from: today() };
-  Object.assign(sub, { name, amount, day: Number($('#u-day').value), method: $('#u-method').value, category: $('#u-cat').value });
+  const from = $('#u-from').value || today();
+  const sub = editingSub || { id: uid() };
+  Object.assign(sub, { name, amount, day: Number($('#u-day').value), method: $('#u-method').value, category: $('#u-cat').value, from });
   if (!editingSub) data.subs.push(sub);
+  // 開始日を後ろにずらしたら、それより前の自動記録（直していないもの）は消す
+  data.entries = data.entries.filter((e) => !(e.autoKey && e.autoKey.startsWith(`sub:${sub.id}:`) && !e.edited && e.date < from));
   save();
   $('#sub-form').hidden = true;
-  toast(editingSub ? '保存しました🔁' : `登録しました🔁 次の${dayLabel(sub.day)}から自動で記録します`);
+  toast(editingSub ? '保存しました🔁' : '登録しました🔁');
   render();
 });
 $('#u-cancel').addEventListener('click', () => {

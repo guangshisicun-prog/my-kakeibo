@@ -311,6 +311,52 @@ group('毎月の定額支出（サブスク）', () => {
     // 8/5・9/5 の分 → 9/10・10/10 に引き落とし
     eq(app.auto('card:').map((e) => [e.date, e.amount]), [['2026-09-10', 1490], ['2026-10-10', 1490]]);
   });
+  test('利用開始日を前の日にして登録すると、その日から今日までの分が記録される', async () => {
+    const app = await loadApp({ data: base() });
+    app.tab('settings');
+    app.click('#sub-new');
+    app.set('#u-name', '家賃'); app.set('#u-amount', '50000'); app.set('#u-day', '27'); app.set('#u-method', 'bankdebit');
+    app.set('#u-from', '2026-08-15');
+    app.click('#u-save');
+    eq(app.data().subs[0].from, '2026-08-15');
+    eq(app.auto('sub:').map((e) => [e.date, e.amount, e.method]), [['2026-08-27', 50000, 'bankdebit'], ['2026-09-27', 50000, 'bankdebit']]);
+    ok(app.text('#sub-list').includes('8月15日から'), app.text('#sub-list'));
+  });
+  test('利用開始日が「記録をつけ始めた日」より前でも、つけ始めた日より前は記録しない', async () => {
+    const app = await loadApp({ data: base({ since: '2026-09-01' }) });
+    app.tab('settings');
+    app.click('#sub-new');
+    app.set('#u-name', '家賃'); app.set('#u-amount', '50000'); app.set('#u-day', '27');
+    app.set('#u-from', '2026-01-01');
+    app.click('#u-save');
+    eq(app.auto('sub:').map((e) => e.date), ['2026-09-27']);
+    ok(app.text('#sub-list').includes('1月1日から'), '開始日が出る');
+  });
+  test('利用開始日を後ろにずらすと、それより前の自動記録は消える（直したものは残る）', async () => {
+    const app = await loadApp({ data: base({ subs: [sub()] }) });
+    // 8月分を自分で直しておく
+    app.ev("data.entries.find((e) => e.date === '2026-08-27').edited = true; save();");
+    app.tab('settings');
+    app.click('[data-edit-sub="u1"]');
+    eq(app.q('#u-from').value, '2026-08-01', '今の開始日が入っている');
+    app.set('#u-from', '2026-09-01');
+    app.click('#u-save');
+    eq(app.auto('sub:').map((e) => e.date), ['2026-08-27', '2026-09-27']);
+    app.ev("data.entries.find((e) => e.date === '2026-08-27').edited = false; save();");
+    app.click('[data-edit-sub="u1"]');
+    app.set('#u-from', '2026-09-28');
+    app.click('#u-save');
+    eq(app.auto('sub:').length, 0);
+  });
+  test('利用開始日が空なら、今日から始まる', async () => {
+    const app = await loadApp({ data: base() });
+    app.tab('settings');
+    app.click('#sub-new');
+    app.set('#u-name', 'ジム'); app.set('#u-amount', '3000');
+    app.set('#u-from', '');
+    app.click('#u-save');
+    eq(app.data().subs[0].from, '2026-10-20');
+  });
   test('設定画面から登録すると、登録した日から始まる', async () => {
     const app = await loadApp({ data: base() });
     app.tab('settings');
@@ -321,6 +367,54 @@ group('毎月の定額支出（サブスク）', () => {
     eq(app.auto('sub:').length, 0);
     const f = app.ev("forecast('2026-11')");
     eq(f.debits.map((x) => [x.label, x.date]), [['ジム', '2026-11-05']]);
+  });
+});
+
+// =====================================================================
+group('ホームの「毎月の定額支出」', () => {
+  const s = (id, name, amount, method, from = '2026-08-01', day = 5) => ({ id, name, amount, day, method, category: 'その他', from });
+  const subs = [
+    s('a', 'Netflix', 1490, 'card'),
+    s('b', '家賃', 50000, 'bankdebit', '2026-08-01', 27),
+    s('c', '携帯代', 2000, 'bankdebit'),
+    s('d', 'ジム', 3000, 'paypay', '2026-11-01'), // まだ始まっていない
+  ];
+  test('いま続いているものの合計が出る（これから始まるものは入れない）', async () => {
+    const app = await loadApp({ data: base({ subs }) });
+    eq(app.text('#home-subs .big'), '¥53,490');
+  });
+  test('1つずつの名前と金額が、高い順に出る', async () => {
+    const app = await loadApp({ data: base({ subs }) });
+    const rows = app.qa('#home-subs > .row').map((r) => r.innerText.replace(/\s+/g, ' ').trim());
+    eq(rows.slice(0, 3), ['🏦 家賃 毎月27日・銀行引き落とし ¥50,000', '🏦 携帯代 毎月5日・銀行引き落とし ¥2,000', '💳 Netflix 毎月5日・クレカ ¥1,490']);
+  });
+  test('はらい方ごとの合計が出る', async () => {
+    const app = await loadApp({ data: base({ subs }) });
+    const t = app.text('#home-subs');
+    ok(t.includes('🏦 銀行引き落とし\n¥52,000') || /銀行引き落とし\s*¥52,000/.test(t), t);
+    ok(/クレカ\s*¥1,490/.test(t), t);
+    ok(!/はらい方ごと[\s\S]*PayPay/.test(t.split('これから始まるもの')[0]), 'まだ始まっていないPayPayは入れない');
+  });
+  test('これから始まるものは、別に分けて開始日といっしょに出る', async () => {
+    const app = await loadApp({ data: base({ subs }) });
+    ok(/これから始まるもの[\s\S]*ジム[\s\S]*11月1日から/.test(app.text('#home-subs')), app.text('#home-subs'));
+  });
+  test('見込みのすぐ下にある', async () => {
+    const app = await loadApp({ data: base({ subs }) });
+    const cards = app.qa('#page-home > .card').map((c) => c.id);
+    eq(cards.indexOf('home-subs'), cards.indexOf('home-forecast') + 1);
+  });
+  test('登録がないときは、登録をすすめる', async () => {
+    const app = await loadApp({ data: base() });
+    ok(app.text('#home-subs').includes('「設定」で定額支出を登録すると'));
+  });
+  test('設定で追加すると、すぐにホームの合計にも反映される', async () => {
+    const app = await loadApp({ data: base({ subs: [subs[1]] }) });
+    app.tab('settings');
+    app.click('#sub-new');
+    app.set('#u-name', 'Spotify'); app.set('#u-amount', '980');
+    app.click('#u-save');
+    eq(app.text('#home-subs .big'), '¥50,980');
   });
 });
 
