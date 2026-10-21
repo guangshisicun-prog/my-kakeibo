@@ -151,6 +151,8 @@
   .donut-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
   .donut-wrap svg { width: 170px; }
   .donut-legend { width: 100%; font-size: 14px; }
+  .method-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; font-size: 13px; margin-top: 6px; }
+  .method-key { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
   .donut-legend .row { padding: 5px 0; border-bottom: 1px dashed var(--line); }
   .donut-legend .row:last-child { border-bottom: none; }
   .donut-legend .row span:first-child { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
@@ -166,7 +168,10 @@
   .cal .d.today .n { background: var(--leaf); color: #fff; border-radius: 99px; padding: 0 6px; font-weight: 700; }
   .cal .d.sel { border-color: var(--leaf); }
   .cal .d { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
-  .pp-icon { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 1.2em; height: 1.2em; border: .13em solid #ff0033; border-radius: .28em; background: #fff; color: #ff0033; font: 900 .9em/1 -apple-system, "Helvetica Neue", Arial, sans-serif; vertical-align: .05em; } /* .05em：となりの文字のまん中にそろう高さ */
+  .pp-icon, .cc-icon, .bk-icon, .wl-icon { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 1.2em; height: 1.2em; border: .13em solid #ff0033; border-radius: .28em; background: #fff; color: #ff0033; font: 900 .9em/1 -apple-system, "Helvetica Neue", Arial, sans-serif; vertical-align: .05em; } /* .05em：となりの文字のまん中にそろう高さ */
+  .cc-icon { border-color: #e8820c; color: #e8820c; } /* クレカ：オレンジの四角でC */
+  .bk-icon { border-color: #2a78d6; color: #2a78d6; } /* 銀行：青の四角でB */
+  .wl-icon { border-color: #2e9e4f; color: #2e9e4f; } /* 財布・現金：緑の四角でW */
   .cal .d.multi { border-color: var(--leaf); background: var(--leaf); color: #fff; }
   .cal .dots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; }
   .cal .dot { width: 7px; height: 7px; border-radius: 50%; }
@@ -267,7 +272,7 @@
       <div class="chips" id="f-from"></div>
       <label>どこへ</label>
       <div class="chips" id="f-to"></div>
-      <div class="muted" style="margin-top:8px">例：ATMでおろした → 銀行からお財布へ／PayPayにチャージ → 銀行からPayPayへ</div>
+      <div class="muted" style="margin-top:8px">例：ATMでおろした → 銀行から財布へ／PayPayにチャージ → 銀行からPayPayへ</div>
     </div>
 
     <label>日付</label>
@@ -288,7 +293,7 @@
   </div>
   <div class="card">
     <div class="cal" id="cal"></div>
-    <div class="muted" style="margin-top:10px">● シフト　💰 給料日　💳 クレカ引き落とし<br>日付をタップするとシフトを追加できます<br>日付を長押しすると、何日かまとめて選べます</div>
+    <div class="muted" style="margin-top:10px">● シフト　💰 給料日　<span class="cc-icon">C</span> クレカ引き落とし<br>日付をタップするとシフトを追加できます<br>日付を長押しすると、何日かまとめて選べます</div>
   </div>
   <div class="card" id="day-detail"></div>
   <div class="card" id="cal-forecast"></div>
@@ -318,6 +323,10 @@
       <h2>銀行の月末残高</h2>
       <div id="chart-balance"></div>
     </div>
+    <div class="card chart">
+      <h2>はらい方ごとの支出</h2>
+      <div id="chart-methods"></div>
+    </div>
   </div>
   <div id="review-list" hidden>
     <div class="muted" style="margin:0 4px 10px">記録をタップすると、直したり削除したりできます。「自動」は、アプリが自動で記録したものです。</div>
@@ -330,7 +339,7 @@
   <h1>設定 ⚙️</h1>
 
   <div class="card">
-    <h2>🏦 最初の残高</h2>
+    <h2><span class="bk-icon">B</span> 最初の残高</h2>
     <div class="muted">記録をつけ始めた日と、その日の残高を入れてください。給料・引き落とし・サブスクの自動記録は、この日から始まります。</div>
     <label>記録をつけ始めた日</label>
     <input type="date" id="i-since">
@@ -366,7 +375,7 @@
   </div>
 
   <div class="card">
-    <h2>💳 クレカ</h2>
+    <h2><span class="cc-icon">C</span> クレカ</h2>
     <div class="muted">締め日と支払日を入れると、支払日にクレカの合計が銀行から自動で引かれます。</div>
     <div class="two">
       <div><label>締め日</label><select id="c-closing"></select></div>
@@ -459,16 +468,21 @@ const FIXED = '固定費';
 const BUDGET_CATS = CATS.out.filter((c) => c.name !== FIXED);
 // PayPayのアイコン（赤い四角でPを囲んだもの。絵文字ではなく文字と線で作る）
 const PAYPAY_ICON = '<span class="pp-icon">P</span>';
+// クレカのアイコン（オレンジの四角でCを囲んだもの）と、銀行のアイコン（青の四角でBを囲んだもの）
+const CARD_ICON = '<span class="cc-icon">C</span>';
+const BANK_ICON = '<span class="bk-icon">B</span>';
+// 財布と現金のアイコン（緑の四角でWを囲んだもの。Wは Wallet のW）
+const WALLET_ICON = '<span class="wl-icon">W</span>';
 const ACCTS = [
-  { id: 'bank', name: '銀行', icon: '🏦' },
+  { id: 'bank', name: '銀行', icon: BANK_ICON },
   { id: 'paypay', name: 'PayPay', icon: PAYPAY_ICON },
-  { id: 'cash', name: 'お財布', icon: '👛' },
+  { id: 'cash', name: '財布', icon: WALLET_ICON },
 ];
 const METHODS = [
-  { id: 'cash', name: '現金', icon: '💴', acct: 'cash' },
+  { id: 'cash', name: '現金', icon: WALLET_ICON, acct: 'cash' },
   { id: 'paypay', name: 'PayPay', icon: PAYPAY_ICON, acct: 'paypay' },
-  { id: 'card', name: 'クレカ', icon: '💳', acct: null },
-  { id: 'bankdebit', name: '銀行引き落とし', icon: '🏦', acct: 'bank' },
+  { id: 'card', name: 'クレカ', icon: CARD_ICON, acct: null },
+  { id: 'bankdebit', name: '銀行引き落とし', icon: BANK_ICON, acct: 'bank' },
 ];
 const JOB_COLORS = ['#f59bab', '#7ccbb4', '#8fb5e8', '#f7c86b', '#c3a6e6', '#f2a37b'];
 const KEY = 'kakeibo-data-v1';
@@ -674,7 +688,7 @@ function forecast(mk) {
   const pays = payGroups().filter((g) => g.date.startsWith(mk))
     .map((g) => { const e = done(g.key); return { label: g.name, date: g.date, amount: e ? e.amount : g.amount, done: !!e }; });
   const cards = cardGroups().filter((g) => g.date.startsWith(mk))
-    .map((g) => { const e = done(g.key); return { label: 'クレカ', icon: '💳', date: g.date, amount: e ? e.amount : g.amount, done: !!e, bank: true }; });
+    .map((g) => { const e = done(g.key); return { label: 'クレカ', icon: CARD_ICON, date: g.date, amount: e ? e.amount : g.amount, done: !!e, bank: true }; });
   const [y, m] = mk.split('-').map(Number);
   const subs = data.subs.map((s) => {
     const date = subDate(s, y, m);
@@ -691,19 +705,19 @@ function forecastHtml(mk, withBank) {
   const [, m] = mk.split('-').map(Number);
   const line = (x, sign) => `<div class="row line-row"><span>${mdw(x.date).replace(/（.）/, '')}　${x.icon || '💼'} ${escapeHtml(x.label)}${x.done ? ' ✅' : ''}</span>
     <b class="${sign > 0 ? 'plus' : 'minus'}">${sign > 0 ? '+' : '-'}${yen(x.amount)}</b></div>`;
-  let h = `<h2>🔮 ${m}月の見込み</h2>`;
+  let h = `<h2>${m}月の見込み</h2>`;
   h += `<h3>給料（銀行に入る）　${yen(sum(f.pays))}</h3>`;
   h += f.pays.length ? f.pays.map((x) => line(x, 1)).join('') : '<div class="muted">この月の給料日はありません</div>';
   h += `<h3>引き落とし（銀行から出る）　${yen(sum(f.debits))}</h3>`;
   h += f.debits.length ? f.debits.map((x) => line(x, -1)).join('') : '<div class="muted">この月の引き落としはありません</div>';
-  if (!data.card.set) h += '<div class="muted">💳 クレカの締め日・支払日を「設定」で入れると、ここに出ます</div>';
+  if (!data.card.set) h += '<div class="muted"><span class="cc-icon">C</span> クレカの締め日・支払日を「設定」で入れると、ここに出ます</div>';
   if (f.otherSubs.length) {
     h += `<h3>そのほかの定額支出　${yen(sum(f.otherSubs))}</h3>` + f.otherSubs.map((x) => line(x, -1)).join('');
   }
   if (withBank) {
     const rest = (arr) => sum(arr.filter((x) => !x.done));
     const end = balance('bank') + rest(f.pays) - rest(f.debits);
-    h += `<div class="forecast-end"><div class="row"><span>🏦 月末の銀行残高（予想）</span><b class="${end < 0 ? 'minus' : ''}">${yen(end)}</b></div>
+    h += `<div class="forecast-end"><div class="row"><span><span class="bk-icon">B</span> 月末の銀行残高（予想）</span><b class="${end < 0 ? 'minus' : ''}">${yen(end)}</b></div>
       <div class="muted">いまの銀行 ${yen(balance('bank'))} ＋ これからの給料 ${yen(rest(f.pays))} − これからの引き落とし ${yen(rest(f.debits))}</div></div>`;
   }
   h += '<div class="muted" style="margin-top:8px">✅ は記録ずみ。それ以外は見込みです</div>';
@@ -971,7 +985,7 @@ function renderCal() {
     const date = ymd(y, m, d);
     const dots = data.shifts.filter((s) => s.date === date && jobOf(s.jobId))
       .map((s) => `<span class="dot" style="background:${jobColor(jobOf(s.jobId))}"></span>`).join('');
-    const marks = (pays.some((g) => g.date === date) ? '💰' : '') + (cards.some((g) => g.date === date) ? '💳' : '');
+    const marks = (pays.some((g) => g.date === date) ? '💰' : '') + (cards.some((g) => g.date === date) ? CARD_ICON : '');
     const selClass = multi ? (multi.dates.has(date) ? 'multi' : '') : (date === selDate ? 'sel' : '');
     html += `<button class="d ${date === today() ? 'today' : ''} ${selClass}" data-date="${date}">
       <span class="n">${d}</span><span class="dots">${dots}</span><span class="mark">${marks}</span></button>`;
@@ -1005,7 +1019,7 @@ function renderDayDetail() {
   const shifts = data.shifts.filter((s) => s.date === selDate && jobOf(s.jobId)).sort((a, b) => (a.start < b.start ? -1 : 1));
   let html = `<h2>${mdw(selDate)}</h2>`;
   html += payGroups().filter((g) => g.date === selDate).map((g) => `<div class="muted" style="margin-bottom:6px">💰 ${escapeHtml(g.name)}の給料日（見込み ${yen(g.amount)}）</div>`).join('');
-  html += cardGroups().filter((g) => g.date === selDate).map((g) => `<div class="muted" style="margin-bottom:6px">💳 クレカの引き落とし日（${yen(g.amount)}）</div>`).join('');
+  html += cardGroups().filter((g) => g.date === selDate).map((g) => `<div class="muted" style="margin-bottom:6px"><span class="cc-icon">C</span> クレカの引き落とし日（${yen(g.amount)}）</div>`).join('');
   html += shifts.length
     ? shifts.map((s) => {
         const job = jobOf(s.jobId);
@@ -1256,6 +1270,45 @@ function renderBalanceBars() {
   $('#chart-balance').innerHTML = `<svg viewBox="0 0 ${W} ${H}">${svg}</svg>
     <div class="muted" style="text-align:center">今月は、いまの残高です</div>`;
 }
+// はらい方ごとの支出（月ごとの積み上げ棒。色はアイコンの色とおなじ）
+const METHOD_COLORS = { cash: '#2e9e4f', paypay: '#ff0033', card: '#e8820c', bankdebit: '#2a78d6' };
+function renderMethodBars() {
+  const nowMk = today().slice(0, 7);
+  const pts = lastMonths(6)
+    .filter((mo) => mo.mk >= data.since.slice(0, 7) && mo.mk <= nowMk)
+    .map((mo) => {
+      const outs = monthEntries(mo.mk).filter((e) => e.type === 'out');
+      const parts = METHODS.map((m) => ({ m, v: sum(outs.filter((e) => e.method === m.id)) }));
+      return Object.assign(mo, { parts, total: sum(outs), now: mo.mk === nowMk });
+    });
+  if (!pts.length) {
+    $('#chart-methods').innerHTML = '<div class="empty">記録をつけ始める前の月です</div>';
+    return;
+  }
+  const W = 340, H = 200, T = 22, B = 24, side = 4;
+  const hi = Math.max(...pts.map((p) => p.total)) || 1;
+  const ph = H - T - B;
+  const gw = (W - side * 2) / 6; // いつも6か月ぶんの横はば
+  const bw = Math.min(30, gw - 14);
+  let svg = `<line x1="${side}" x2="${W - side}" y1="${T + ph}" y2="${T + ph}" stroke="var(--line)" stroke-width="1"/>`;
+  pts.forEach((p, i) => {
+    const cx = side + gw * (i + 6 - pts.length) + gw / 2;
+    let y = T + ph;
+    p.parts.filter((x) => x.v > 0).forEach((x, j, arr) => {
+      const h = (x.v / hi) * ph;
+      y -= h;
+      const tip = `${p.label}　${x.m.name}　${yen(x.v)}（${Math.round((x.v / p.total) * 100)}%）`;
+      // いちばん上の段だけ上の角を丸くする
+      svg += (j === arr.length - 1 ? barPath(cx - bw / 2, y, bw, h, METHOD_COLORS[x.m.id]) : `<rect x="${cx - bw / 2}" y="${y}" width="${bw}" height="${h}" fill="${METHOD_COLORS[x.m.id]}"/>`)
+        .replace(/^<(path|rect)/, `<$1 data-tip="${tip}" data-method="${x.m.id}"`);
+    });
+    svg += `<text x="${cx}" y="${y - 6}" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--text)">${yen(p.total)}</text>`;
+    svg += `<text x="${cx}" y="${H - 6}" text-anchor="middle" font-size="11" fill="${p.now ? 'var(--text)' : 'var(--sub)'}" ${p.now ? 'font-weight="700"' : ''}>${p.label}${p.now ? '(今)' : ''}</text>`;
+  });
+  const legend = METHODS.map((m) => `<span class="method-key"><i class="sw" style="background:${METHOD_COLORS[m.id]}"></i>${m.name}</span>`).join('');
+  $('#chart-methods').innerHTML = `<svg viewBox="0 0 ${W} ${H}">${svg}</svg>
+    <div class="method-legend">${legend}</div><div class="chart-info muted">棒をタップすると、くわしい金額が出ます</div>`;
+}
 // グラフをタップすると、その数字が下に出る
 $('#review-graph').addEventListener('click', (ev) => {
   const t = ev.target.closest('[data-tip]');
@@ -1290,7 +1343,7 @@ function renderList() {
     } else if (e.type === 'move') {
       icon = '💱'; kind = '移動'; sub = `💱 移動・${acctOf(e.from).name} → ${acctOf(e.to).name}`;
     } else if (e.type === 'cardpay') {
-      icon = '💳'; kind = 'クレカの引き落とし'; sub = '🏦 銀行から（支出には数えません）';
+      icon = CARD_ICON; kind = 'クレカの引き落とし'; sub = BANK_ICON + ' 銀行から（支出には数えません）';
     } else {
       icon = '⚖️'; kind = '残高を合わせた'; sub = `⚖️ 残高を合わせた・${acctOf(e.account).name}`; sign = e.amount > 0 ? '+' : '';
     }
@@ -1361,7 +1414,7 @@ $('#i-save').addEventListener('click', () => {
   data.since = $('#i-since').value || today();
   $$('[data-initial]').forEach((i) => (data.initial[i.dataset.initial] = Math.round(Number(i.value)) || 0));
   save();
-  toast('最初の残高を保存しました🏦');
+  toast('最初の残高を保存しました');
   render();
 });
 
@@ -1427,7 +1480,7 @@ $('#j-cancel').addEventListener('click', () => {
 $('#c-save').addEventListener('click', () => {
   data.card = { set: true, closing: Number($('#c-closing').value), offset: Number($('#c-offset').value), payday: Number($('#c-payday').value) };
   save();
-  toast('クレカの設定を保存しました💳');
+  toast('クレカの設定を保存しました');
   render();
 });
 
@@ -1440,7 +1493,7 @@ function openSubForm(sub) {
   $('#u-name').value = sub ? sub.name : '';
   $('#u-amount').value = sub ? sub.amount : '';
   $('#u-day').innerHTML = dayOptions(sub ? sub.day : 1);
-  $('#u-method').innerHTML = METHODS.map((m) => `<option value="${m.id}">${m.icon === PAYPAY_ICON ? '' : m.icon + ' '}${m.name}</option>`).join('');
+  $('#u-method').innerHTML = METHODS.map((m) => `<option value="${m.id}">${m.icon.startsWith('<span') ? '' : m.icon + ' '}${m.name}</option>`).join('');
   $('#u-method').value = sub ? sub.method : 'card';
   $('#u-from').value = sub ? sub.from : today();
   $('#u-cancel').textContent = sub ? 'この定額支出をやめる' : 'やめる';
@@ -1579,6 +1632,7 @@ function render() {
   renderCal();
   renderDonut();
   renderBalanceBars();
+  renderMethodBars();
   renderList();
   renderMonthSummary();
   if (page === 'settings') renderSettings();

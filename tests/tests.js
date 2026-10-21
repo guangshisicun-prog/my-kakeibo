@@ -428,12 +428,12 @@ group('ホームの「毎月の定額支出」', () => {
   test('1つずつの名前と金額が、高い順に出る', async () => {
     const app = await loadApp({ data: base({ subs }) });
     const rows = app.qa('#home-subs > .row').map((r) => r.innerText.replace(/\s+/g, ' ').trim());
-    eq(rows.slice(0, 3), ['🏦 家賃 毎月27日・銀行引き落とし ¥50,000', '🏦 携帯代 毎月5日・銀行引き落とし ¥2,000', '💳 Netflix 毎月5日・クレカ（チェックで銀行から引く） ¥1,490']);
+    eq(rows.slice(0, 3), ['B 家賃 毎月27日・銀行引き落とし ¥50,000', 'B 携帯代 毎月5日・銀行引き落とし ¥2,000', 'C Netflix 毎月5日・クレカ（チェックで銀行から引く） ¥1,490']);
   });
   test('はらい方ごとの合計が出る', async () => {
     const app = await loadApp({ data: base({ subs }) });
     const t = app.text('#home-subs');
-    ok(t.includes('🏦 銀行引き落とし\n¥52,000') || /銀行引き落とし\s*¥52,000/.test(t), t);
+    ok(t.includes('B 銀行引き落とし\n¥52,000') || /銀行引き落とし\s*¥52,000/.test(t), t);
     ok(/クレカ\s*¥1,490/.test(t), t);
     ok(!/はらい方ごと[\s\S]*PayPay/.test(t.split('これから始まるもの')[0]), 'まだ始まっていないPayPayは入れない');
   });
@@ -789,6 +789,39 @@ group('グラフ', () => {
     const bar = app.q('#chart-balance rect');
     ok(bar && bar.getAttribute('fill') === 'var(--red)', '赤い棒がありません');
     ok(app.text('#chart-balance').includes('-¥5,000'));
+  });
+  test('はらい方ごとの支出：月ごとに1本の棒で、合計の金額が出る', async () => {
+    const app = await loadApp({ data: base({ entries: [out('2026-09-03', 1000, 'cash'), out('2026-09-04', 500, 'card'), out('2026-10-01', 2000, 'paypay'), out('2026-10-02', 300, 'bankdebit'), out('2026-10-03', 700, 'cash')] }) });
+    const texts = app.qa('#chart-methods text').map((t) => t.textContent);
+    eq(texts, ['¥0', '8月', '¥1,500', '9月', '¥3,000', '10月(今)']);
+  });
+  test('はらい方ごとに色が分かれ、色はアイコンとおなじ', async () => {
+    const app = await loadApp({ data: base({ entries: [out('2026-10-01', 2000, 'paypay'), out('2026-10-02', 300, 'bankdebit'), out('2026-10-03', 700, 'cash'), out('2026-10-04', 100, 'card')] }) });
+    const fill = (id) => app.q(`#chart-methods [data-method="${id}"]`).getAttribute('fill');
+    eq([fill('cash'), fill('paypay'), fill('card'), fill('bankdebit')], ['#2e9e4f', '#ff0033', '#e8820c', '#2a78d6']);
+    eq(app.qa('#chart-methods .method-key').map((e) => e.textContent), ['現金', 'PayPay', 'クレカ', '銀行引き落とし']);
+  });
+  test('はらい方ごとの支出：段の高さが金額に比例する', async () => {
+    const app = await loadApp({ data: base({ entries: [out('2026-10-01', 2000, 'paypay'), out('2026-10-03', 1000, 'cash')] }) });
+    app.tab('review'); // 見えている画面でないと高さを測れない
+    const hOf = (id) => app.q(`#chart-methods [data-method="${id}"]`).getBBox().height;
+    const ratio = hOf('paypay') / hOf('cash');
+    ok(Math.abs(ratio - 2) < 0.05, `比が ${ratio}`);
+  });
+  test('はらい方ごとの支出：棒をタップすると、月・はらい方・金額・割合が出る', async () => {
+    const app = await loadApp({ data: base({ entries: [out('2026-10-01', 3000, 'paypay'), out('2026-10-03', 1000, 'cash')] }) });
+    app.q('#chart-methods [data-method="paypay"]').dispatchEvent(new app.w.MouseEvent('click', { bubbles: true }));
+    eq(app.text('#chart-methods .chart-info'), '10月　PayPay　¥3,000（75%）');
+  });
+  test('はらい方ごとの支出：固定費（定額支出）もふくめ、移動やクレカの引き落としはふくめない', async () => {
+    const e = [out('2026-10-01', 1000, 'card', '固定費'), { id: 'm1', type: 'move', date: '2026-10-02', amount: 5000, from: 'bank', to: 'cash', memo: '' }];
+    const app = await loadApp({ data: base({ entries: e }) });
+    const texts = app.qa('#chart-methods text').map((t) => t.textContent);
+    eq(texts[texts.length - 2], '¥1,000');
+  });
+  test('はらい方ごとの支出：記録をつけ始めた月より前は出さない', async () => {
+    const app = await loadApp({ data: base({ since: '2026-10-01' }) });
+    eq(app.qa('#chart-methods text').map((t) => t.textContent), ['¥0', '10月(今)']);
   });
   test('内訳のグラフをタップすると数字が出る', async () => {
     const app = await loadApp({ data: base({ entries: [out('2026-10-01', 1000)] }) });
@@ -1245,7 +1278,86 @@ group('PayPayのアイコン', () => {
     app.click('#sub-new');
     const opt = app.q('#u-method option[value="paypay"]');
     eq(opt.textContent, 'PayPay');
-    ok(app.q('#u-method option[value="cash"]').textContent.includes('💴'), 'ほかのはらい方は絵文字のまま');
+    eq(app.q('#u-method option[value="cash"]').textContent, '現金');
+  });
+});
+
+// =====================================================================
+group('クレカと銀行のアイコン・見込みの見出し', () => {
+  test('どの画面にも💳と🏦が残っていない', async () => {
+    const app = await loadApp({ data: base({ entries: [out('2026-10-01', 500, 'card'), out('2026-10-02', 300, 'bankdebit')], subs: [{ id: 'u1', name: '動画', amount: 980, day: 5, method: 'card', category: '固定費', from: '2026-08-01' }] }) });
+    for (const t of ['home', 'add', 'cal', 'review', 'settings']) {
+      app.tab(t);
+      const h = app.q('body').innerHTML;
+      ok(!h.includes('💳') && !h.includes('🏦'), `${t}の画面に💳か🏦が残っています`);
+    }
+  });
+  test('クレカはオレンジの四角で囲んだC', async () => {
+    const app = await loadApp({ data: base() });
+    app.tab('add');
+    const icon = app.q('#f-method [data-id="card"] .cc-icon');
+    ok(icon, 'クレカのアイコンがありません');
+    eq(icon.textContent, 'C');
+    const st = app.w.getComputedStyle(icon);
+    eq([st.color, st.borderTopColor], ['rgb(232, 130, 12)', 'rgb(232, 130, 12)']);
+  });
+  test('銀行は青の四角で囲んだB', async () => {
+    const app = await loadApp({ data: base() });
+    const icon = app.q('#balances .bk-icon');
+    ok(icon, '銀行のアイコンがありません');
+    eq(icon.textContent, 'B');
+    const st = app.w.getComputedStyle(icon);
+    eq([st.color, st.borderTopColor], ['rgb(42, 120, 214)', 'rgb(42, 120, 214)']);
+  });
+  test('一覧の記録にもアイコンとして出る（文字のまま出ない）', async () => {
+    const app = await loadApp({ data: base({ entries: [out('2026-10-01', 500, 'card'), out('2026-10-02', 300, 'bankdebit')] }) });
+    app.tab('review');
+    app.click('#review-toggle [data-view="list"]');
+    ok(app.q('#entry-list .memo .cc-icon'), 'クレカのアイコンがありません');
+    ok(app.q('#entry-list .memo .bk-icon'), '銀行のアイコンがありません');
+    ok(!app.text('#entry-list').includes('<span'), app.text('#entry-list'));
+  });
+  test('定額支出の選ぶリストでは、クレカと銀行引き落としは文字だけ', async () => {
+    const app = await loadApp({ data: base() });
+    app.tab('settings');
+    app.click('#sub-new');
+    eq(app.q('#u-method option[value="card"]').textContent, 'クレカ');
+    eq(app.q('#u-method option[value="bankdebit"]').textContent, '銀行引き落とし');
+  });
+  test('「お財布」ではなく「財布」になっている', async () => {
+    const app = await loadApp({ data: base({ entries: [out('2026-10-01', 500, 'cash')] }) });
+    for (const t of ['home', 'add', 'cal', 'review', 'settings']) {
+      app.tab(t);
+      ok(!app.q('body').innerHTML.includes('お財布'), `${t}の画面に「お財布」が残っています`);
+    }
+    app.tab('home');
+    ok(app.text('#balances').includes('財布'), app.text('#balances'));
+  });
+  test('財布と現金は、おなじ緑の四角で囲んだW', async () => {
+    const app = await loadApp({ data: base() });
+    const w1 = app.q('#balances .wl-icon');
+    ok(w1, '財布のアイコンがありません');
+    eq(w1.textContent, 'W');
+    eq(app.w.getComputedStyle(w1).borderTopColor, 'rgb(46, 158, 79)');
+    app.tab('add');
+    const w2 = app.q('#f-method [data-id="cash"] .wl-icon');
+    ok(w2, '現金のアイコンがありません');
+    eq(w2.textContent, 'W');
+  });
+  test('どの画面にも👛と💴が残っていない', async () => {
+    const app = await loadApp({ data: base({ entries: [out('2026-10-01', 500, 'cash')] }) });
+    for (const t of ['home', 'add', 'cal', 'review', 'settings']) {
+      app.tab(t);
+      const h = app.q('body').innerHTML;
+      ok(!h.includes('👛') && !h.includes('💴'), `${t}の画面に👛か💴が残っています`);
+    }
+  });
+  test('シフトの「月の見込み」の見出しに🔮がない', async () => {
+    const app = await loadApp({ data: base() });
+    app.tab('cal');
+    const h = app.qa('h2').map((e) => e.textContent).find((t) => t.includes('月の見込み'));
+    ok(h, '見込みの見出しがありません');
+    ok(/^\d+月の見込み$/.test(h.trim()), h);
   });
 });
 
@@ -1348,7 +1460,7 @@ group('一覧と残高合わせの細かい操作', () => {
     ] }) });
     openList(app);
     const t = app.text('#entry-list');
-    ['銀行 → お財布', '残高を合わせた', '+¥300', 'おばあちゃん', '📮 仕送り・P PayPayへ'].forEach((s) => ok(t.includes(s), `「${s}」が出ていません\n${t}`));
+    ['銀行 → 財布', '残高を合わせた', '+¥300', 'おばあちゃん', '📮 仕送り・P PayPayへ'].forEach((s) => ok(t.includes(s), `「${s}」が出ていません\n${t}`));
   });
   test('予算をこえたら「あと使えるお金」が赤くなる', async () => {
     const app = await loadApp({ data: base({ budgets: { '食費': 1000 }, entries: [out('2026-10-01', 1500), out('2026-10-02', 850, 'cash', '食費')] }) });
@@ -1380,7 +1492,7 @@ group('記録を直す・削除する・内容', () => {
     eq(app.entries()[0].memo, '学食のカレー');
     openList(app);
     eq(app.text('#entry-list .entry .title'), '学食のカレー');
-    eq(app.text('#entry-list .entry .memo'), '🍙 食費・💴 現金', 'カテゴリとはらい方は下に小さく');
+    eq(app.text('#entry-list .entry .memo'), '🍙 食費・W 現金', 'カテゴリとはらい方は下に小さく');
   });
   test('内容がないときは、カテゴリ名を大きく出す', async () => {
     const app = await loadApp({ data: base({ entries: [out('2026-10-05', 800, 'paypay', '日用品')] }) });
