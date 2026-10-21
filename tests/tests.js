@@ -1046,6 +1046,150 @@ group('シフトの画面の操作', () => {
 });
 
 // =====================================================================
+group('シフトをまとめて追加（長押し）', () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const press = (app, date, type, o = {}) =>
+    app.q(`[data-date="${date}"]`).dispatchEvent(new app.w.PointerEvent(type, Object.assign({ bubbles: true, clientX: 10, clientY: 10 }, o)));
+  // 長押しして指をはなす（はなしたあとのタップもいっしょに来る）
+  async function longPress(app, date) {
+    press(app, date, 'pointerdown');
+    await sleep(app.ev('LONG_PRESS_MS') + 100);
+    press(app, date, 'pointerup');
+    app.click(`[data-date="${date}"]`);
+  }
+  const picked = (app) => app.qa('#cal .d.multi').map((b) => b.dataset.date);
+  const openCal = async (data) => { const app = await loadApp({ data }); app.tab('cal'); return app; };
+
+  test('長押しすると、まとめて選ぶモードになって、その日が選ばれる', async () => {
+    const app = await openCal(base());
+    await longPress(app, '2026-10-21');
+    eq(picked(app), ['2026-10-21']);
+    ok(app.text('#day-detail').includes('1日を選んでいます'), app.text('#day-detail'));
+    ok(app.q('#s-multi-save'), 'まとめて追加ボタンが出る');
+  });
+  test('選ぶモードでは、タップで選んだり外したりできる', async () => {
+    const app = await openCal(base());
+    await longPress(app, '2026-10-21');
+    app.click('[data-date="2026-10-23"]');
+    app.click('[data-date="2026-10-25"]');
+    app.click('[data-date="2026-10-23"]');
+    eq(picked(app), ['2026-10-21', '2026-10-25']);
+    eq(app.q('#s-multi-save').textContent, '2日にまとめて追加');
+  });
+  test('選んだ日ぜんぶに、おなじ時間のシフトが入る', async () => {
+    const app = await openCal(base());
+    await longPress(app, '2026-10-21');
+    app.click('[data-date="2026-10-24"]');
+    app.click('[data-date="2026-10-22"]');
+    app.set('#s-start', '17:00'); app.set('#s-end', '21:00');
+    app.click('#s-multi-save');
+    eq(app.data().shifts.map((s) => [s.date, s.jobId, s.start, s.end]), [
+      ['2026-10-21', 'j1', '17:00', '21:00'],
+      ['2026-10-22', 'j1', '17:00', '21:00'],
+      ['2026-10-24', 'j1', '17:00', '21:00'],
+    ]);
+    eq(app.toast(), '3日にシフトを追加しました📅');
+    eq(picked(app), [], '追加したら、ふつうのカレンダーにもどる');
+    ok(app.q('[data-date="2026-10-21"]').classList.contains('sel'), '最初の日が選ばれている');
+  });
+  test('2つめのバイト先を選ぶと、そっちに入る', async () => {
+    const app = await openCal(base({ jobs: [job(), job({ id: 'j2', name: '塾' })] }));
+    await longPress(app, '2026-10-21');
+    app.click('[data-date="2026-10-22"]');
+    app.click('#s-job [data-id="j2"]');
+    eq(picked(app), ['2026-10-21', '2026-10-22'], 'バイト先を変えても、選んだ日はそのまま');
+    app.click('#s-multi-save');
+    eq(app.data().shifts.map((s) => s.jobId), ['j2', 'j2']);
+  });
+  test('おなじバイト先・おなじ時間のシフトがある日はとばす', async () => {
+    const app = await openCal(base({ shifts: [shift('2026-10-22')] }));
+    await longPress(app, '2026-10-21');
+    app.click('[data-date="2026-10-22"]');
+    app.click('[data-date="2026-10-23"]');
+    app.set('#s-start', '10:00'); app.set('#s-end', '15:00');
+    app.click('#s-multi-save');
+    eq(app.data().shifts.map((s) => s.date).sort(), ['2026-10-21', '2026-10-22', '2026-10-23']);
+    eq(app.toast(), '2日にシフトを追加しました📅（22日はもう入っていたのでとばしたよ）');
+  });
+  test('ぜんぶの日にもう入っていたら、何も追加しない', async () => {
+    const app = await openCal(base({ shifts: [shift('2026-10-21')] }));
+    await longPress(app, '2026-10-21');
+    app.set('#s-start', '10:00'); app.set('#s-end', '15:00');
+    app.click('#s-multi-save');
+    eq([app.data().shifts.length, app.toast()], [1, 'どの日も、おなじシフトがもう入っていたよ']);
+  });
+  test('時間がちがうシフトなら、おなじ日でもとばさない', async () => {
+    const app = await openCal(base({ shifts: [shift('2026-10-21', '10:00', '15:00')] }));
+    await longPress(app, '2026-10-21');
+    app.set('#s-start', '18:00'); app.set('#s-end', '21:00');
+    app.click('#s-multi-save');
+    eq(app.data().shifts.length, 2);
+  });
+  test('時間が空・はじまりとおわりがおなじなら追加しない', async () => {
+    const app = await openCal(base());
+    await longPress(app, '2026-10-21');
+    app.set('#s-start', '');
+    app.click('#s-multi-save');
+    eq([app.data().shifts.length, app.toast()], [0, '時間を入れてね']);
+    app.set('#s-start', '10:00'); app.set('#s-end', '10:00');
+    app.click('#s-multi-save');
+    eq([app.data().shifts.length, app.toast()], [0, 'はじまりとおわりがおなじです']);
+    eq(picked(app), ['2026-10-21'], 'まちがえても、選んだ日は消えない');
+  });
+  test('「やめる」で、何も追加せずにふつうにもどる', async () => {
+    const app = await openCal(base());
+    await longPress(app, '2026-10-21');
+    app.click('[data-date="2026-10-22"]');
+    app.click('#s-multi-cancel');
+    eq([app.data().shifts.length, picked(app), app.q('#s-multi-save')], [0, [], null]);
+    ok(app.q('#s-save'), 'ふつうの追加ボタンにもどる');
+  });
+  test('選んだ日をぜんぶ外すと、ふつうにもどる', async () => {
+    const app = await openCal(base());
+    await longPress(app, '2026-10-21');
+    app.click('[data-date="2026-10-21"]');
+    eq([picked(app), app.q('#s-multi-save')], [[], null]);
+  });
+  test('月を切りかえると、選んだ日はリセット', async () => {
+    const app = await openCal(base());
+    await longPress(app, '2026-10-21');
+    app.click('#page-cal .month button[data-move="1"]');
+    eq([picked(app), app.q('#s-multi-save')], [[], null]);
+    app.click('#page-cal .month button[data-move="-1"]');
+    eq(picked(app), [], 'もどっても選ばれていない');
+  });
+  test('すぐ指をはなしたら（ふつうのタップ）、選ぶモードにならない', async () => {
+    const app = await openCal(base());
+    press(app, '2026-10-21', 'pointerdown');
+    press(app, '2026-10-21', 'pointerup');
+    app.click('[data-date="2026-10-21"]');
+    await sleep(app.ev('LONG_PRESS_MS') + 100);
+    eq([picked(app), app.q('#s-multi-save')], [[], null]);
+    ok(app.q('[data-date="2026-10-21"]').classList.contains('sel'));
+  });
+  test('押したまま指を動かしたら（スクロール）、選ぶモードにならない', async () => {
+    const app = await openCal(base());
+    press(app, '2026-10-21', 'pointerdown');
+    press(app, '2026-10-21', 'pointermove', { clientY: 60 });
+    await sleep(app.ev('LONG_PRESS_MS') + 100);
+    eq(picked(app), []);
+  });
+  test('バイト先を登録していないときは、選ぶモードにならない', async () => {
+    const app = await openCal(base({ jobs: [] }));
+    await longPress(app, '2026-10-21');
+    eq([picked(app), app.toast()], [[], '先に「設定」でバイト先を登録してね']);
+  });
+  test('まとめて入れたシフトも、給料の見込みに入る', async () => {
+    const app = await openCal(base());
+    await longPress(app, '2026-10-21');
+    app.click('[data-date="2026-10-22"]');
+    app.set('#s-start', '10:00'); app.set('#s-end', '15:00');
+    app.click('#s-multi-save');
+    eq(app.ev(`payGroups().filter((g) => g.date === '2026-11-25').reduce((a, g) => a + g.amount, 0)`), 11000);
+  });
+});
+
+// =====================================================================
 group('バックアップ', () => {
   const pickFile = async (app, text) => {
     const dt = new app.w.DataTransfer();

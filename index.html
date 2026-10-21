@@ -165,6 +165,8 @@
   .cal .d.blank { background: none; }
   .cal .d.today .n { background: var(--leaf); color: #fff; border-radius: 99px; padding: 0 6px; font-weight: 700; }
   .cal .d.sel { border-color: var(--leaf); }
+  .cal .d { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+  .cal .d.multi { border-color: var(--leaf); background: var(--leaf); color: #fff; }
   .cal .dots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; }
   .cal .dot { width: 7px; height: 7px; border-radius: 50%; }
   .cal .mark { font-size: 11px; line-height: 1; }
@@ -285,7 +287,7 @@
   </div>
   <div class="card">
     <div class="cal" id="cal"></div>
-    <div class="muted" style="margin-top:10px">● シフト　💰 給料日　💳 クレカ引き落とし<br>日付をタップするとシフトを追加できます</div>
+    <div class="muted" style="margin-top:10px">● シフト　💰 給料日　💳 クレカ引き落とし<br>日付をタップするとシフトを追加できます<br>日付を長押しすると、何日かまとめて選べます</div>
   </div>
   <div class="card" id="day-detail"></div>
   <div class="card" id="cal-forecast"></div>
@@ -949,10 +951,14 @@ function deleteEntry(e) {
 let selDate = today();
 const lastTimes = {}; // バイト先ごとに、前回入れた時間をおぼえておく
 const shiftForm = { jobId: null };
+// 長押しで何日かまとめて選ぶ（ひとつの月の中だけ）。選んでいないときは null
+let multi = null; // { month: '2026-10', dates: Set }
+const LONG_PRESS_MS = 500;
 function renderCal() {
   const y = view.getFullYear();
   const m = view.getMonth() + 1;
   if (!selDate.startsWith(monthKey())) selDate = today().startsWith(monthKey()) ? today() : ymd(y, m, 1);
+  if (multi && multi.month !== monthKey()) multi = null; // 月を切りかえたら、選んだ日はリセット
   const pays = payGroups();
   const cards = cardGroups();
   const first = new Date(y, m - 1, 1).getDay();
@@ -963,14 +969,36 @@ function renderCal() {
     const dots = data.shifts.filter((s) => s.date === date && jobOf(s.jobId))
       .map((s) => `<span class="dot" style="background:${jobColor(jobOf(s.jobId))}"></span>`).join('');
     const marks = (pays.some((g) => g.date === date) ? '💰' : '') + (cards.some((g) => g.date === date) ? '💳' : '');
-    html += `<button class="d ${date === today() ? 'today' : ''} ${date === selDate ? 'sel' : ''}" data-date="${date}">
+    const selClass = multi ? (multi.dates.has(date) ? 'multi' : '') : (date === selDate ? 'sel' : '');
+    html += `<button class="d ${date === today() ? 'today' : ''} ${selClass}" data-date="${date}">
       <span class="n">${d}</span><span class="dots">${dots}</span><span class="mark">${marks}</span></button>`;
   }
   $('#cal').innerHTML = html;
   renderDayDetail();
   $('#cal-forecast').innerHTML = forecastHtml(monthKey(), false);
 }
+function renderMultiDetail() {
+  const dates = [...multi.dates].sort();
+  if (!jobOf(shiftForm.jobId)) shiftForm.jobId = data.jobs[0].id;
+  const t = lastTimes[shiftForm.jobId] || { start: '10:00', end: '15:00' };
+  $('#day-detail').innerHTML = `<h2>${dates.length}日を選んでいます</h2>
+    <div class="muted">${dates.map((d) => mdw(d)).join('・')}<br>日付をタップすると、選んだり外したりできます</div>
+    <div style="margin-top:14px; padding-top:14px; border-top:2px solid var(--line)">
+      <b>＋ まとめてシフトを追加</b>
+      <label>バイト先</label><div class="chips" id="s-job"></div>
+      <div class="two">
+        <div><label>はじまり</label><input type="time" id="s-start" value="${t.start}"></div>
+        <div><label>おわり</label><input type="time" id="s-end" value="${t.end}"></div>
+      </div>
+      <button class="btn" id="s-multi-save">${dates.length}日にまとめて追加</button>
+      <button class="btn sub" id="s-multi-cancel">やめる</button></div>`;
+  chips($('#s-job'), data.jobs.map((j) => ({ id: j.id, name: j.name, icon: '💼' })), shiftForm.jobId, (id) => {
+    shiftForm.jobId = id;
+    renderMultiDetail();
+  });
+}
 function renderDayDetail() {
+  if (multi) return renderMultiDetail();
   const shifts = data.shifts.filter((s) => s.date === selDate && jobOf(s.jobId)).sort((a, b) => (a.start < b.start ? -1 : 1));
   let html = `<h2>${mdw(selDate)}</h2>`;
   html += payGroups().filter((g) => g.date === selDate).map((g) => `<div class="muted" style="margin-bottom:6px">💰 ${escapeHtml(g.name)}の給料日（見込み ${yen(g.amount)}）</div>`).join('');
@@ -1008,10 +1036,46 @@ function renderDayDetail() {
     });
   }
 }
+function startMulti(date) {
+  if (!data.jobs.length) return toast('先に「設定」でバイト先を登録してね');
+  multi = { month: monthKey(), dates: new Set([date]) };
+  renderCal();
+}
+// 長押しを見つける（指を動かしたら、スクロールなので取りやめ）
+let pressTimer = null;
+let pressStart = null;
+let longPressed = false;
+function cancelPress() { clearTimeout(pressTimer); pressTimer = null; }
+$('#cal').addEventListener('pointerdown', (ev) => {
+  const b = ev.target.closest('[data-date]');
+  if (!b || multi) return;
+  longPressed = false;
+  pressStart = { x: ev.clientX, y: ev.clientY };
+  cancelPress();
+  pressTimer = setTimeout(() => {
+    pressTimer = null;
+    longPressed = true;
+    if (navigator.vibrate) navigator.vibrate(20);
+    startMulti(b.dataset.date);
+  }, LONG_PRESS_MS);
+});
+$('#cal').addEventListener('pointermove', (ev) => {
+  if (pressTimer && pressStart && Math.hypot(ev.clientX - pressStart.x, ev.clientY - pressStart.y) > 10) cancelPress();
+});
+['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => $('#cal').addEventListener(t, cancelPress));
+$('#cal').addEventListener('contextmenu', (ev) => ev.preventDefault());
 $('#cal').addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-date]');
   if (!b) return;
-  selDate = b.dataset.date;
+  if (longPressed) { longPressed = false; return; } // 長押しのあとに来るタップは数えない
+  const date = b.dataset.date;
+  if (multi) {
+    if (multi.dates.has(date)) multi.dates.delete(date);
+    else multi.dates.add(date);
+    if (!multi.dates.size) multi = null; // ぜんぶ外したら、ふつうにもどる
+  } else {
+    selDate = date;
+  }
   renderCal();
 });
 $('#day-detail').addEventListener('click', (ev) => {
@@ -1032,6 +1096,34 @@ $('#day-detail').addEventListener('click', (ev) => {
     lastTimes[shiftForm.jobId] = { start, end };
     save();
     toast('シフトを追加しました📅');
+    render();
+  }
+  if (ev.target.id === 's-multi-cancel') {
+    multi = null;
+    return renderCal();
+  }
+  if (ev.target.id === 's-multi-save') {
+    const start = $('#s-start').value;
+    const end = $('#s-end').value;
+    if (!start || !end) return toast('時間を入れてね');
+    if (start === end) return toast('はじまりとおわりがおなじです');
+    const jobId = shiftForm.jobId;
+    const added = [];
+    const skipped = [];
+    for (const date of [...multi.dates].sort()) {
+      // おなじバイト先・おなじ時間のシフトがもうある日はとばす（給料が2回数えられないように）
+      if (data.shifts.some((s) => s.date === date && s.jobId === jobId && s.start === start && s.end === end)) skipped.push(date);
+      else {
+        data.shifts.push({ id: uid(), jobId, date, start, end });
+        added.push(date);
+      }
+    }
+    lastTimes[jobId] = { start, end };
+    selDate = added[0] || skipped[0];
+    multi = null;
+    save();
+    const skipMsg = skipped.length ? `（${skipped.map((d) => Number(d.slice(8)) + '日').join('・')}はもう入っていたのでとばしたよ）` : '';
+    toast(added.length ? `${added.length}日にシフトを追加しました📅${skipMsg}` : 'どの日も、おなじシフトがもう入っていたよ');
     render();
   }
 });
