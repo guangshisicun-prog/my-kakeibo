@@ -441,10 +441,12 @@ group('ホームの「毎月の定額支出」', () => {
     const app = await loadApp({ data: base({ subs }) });
     ok(/これから始まるもの[\s\S]*ジム[\s\S]*11月1日から/.test(app.text('#home-subs')), app.text('#home-subs'));
   });
-  test('見込みのすぐ下にある', async () => {
+  test('「カテゴリごとの予算」と「収支」の間にある', async () => {
     const app = await loadApp({ data: base({ subs }) });
-    const cards = app.qa('#page-home > .card').map((c) => c.id);
-    eq(cards.indexOf('home-subs'), cards.indexOf('home-forecast') + 1);
+    const cards = app.qa('#page-home > .card');
+    const subsAt = cards.findIndex((c) => c.id === 'home-subs');
+    eq(cards[subsAt - 1].querySelector('#budget-list') !== null, true, 'すぐ上はカテゴリごとの予算');
+    eq(cards[subsAt + 1].id, 'home-sums', 'すぐ下は収支');
   });
   test('登録がないときは、登録をすすめる', async () => {
     const app = await loadApp({ data: base() });
@@ -844,16 +846,16 @@ group('月の切りかえ・そのほか', () => {
     eq(css(app.q('#home-title'), 'color'), 'rgb(201, 164, 92)', '見出しは金色');
     ok(css(app.w.document.body, 'font-family').includes('Mincho'), '文字は明朝体');
   });
-  test('ホームの並び：今月あと使えるお金 → カテゴリごとの予算 → 収支 → 見込み → 定額支出', async () => {
+  test('ホームの並び：今月あと使えるお金 → カテゴリごとの予算 → 定額支出 → 収支 → 見込み', async () => {
     const app = await loadApp({ data: base() });
     const cards = app.qa('#page-home > .card');
     const at = (fn) => cards.findIndex(fn);
     const order = [
       at((c) => c.querySelector('#left')),
       at((c) => c.querySelector('#budget-list')),
+      at((c) => c.id === 'home-subs'),
       at((c) => c.id === 'home-sums'),
       at((c) => c.id === 'home-forecast'),
-      at((c) => c.id === 'home-subs'),
     ];
     eq(order, [1, 2, 3, 4, 5], '0番目は「いまの残高」');
   });
