@@ -93,6 +93,17 @@
   .bar > div { height: 100%; border-radius: 1px; background: var(--mint); transition: width .3s; }
   .bar > div.warn { background: var(--yellow); }
   .bar > div.over { background: var(--red); }
+  /* 月ごとのまとめ */
+  .month-sum { cursor: pointer; }
+  .month-sum h2 { display: flex; justify-content: space-between; align-items: baseline; }
+  .sum-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+  .sum-grid b { font-size: 17px; }
+  .back-now { display: block; margin: -6px auto 14px; }
+  /* 定額支出のチェック欄 */
+  .sub-check { display: flex; align-items: flex-start; gap: 10px; margin: 0; font-size: 15px; color: var(--text); cursor: pointer; flex: 1; min-width: 0; }
+  .sub-check input { width: 22px; height: 22px; flex-shrink: 0; margin-top: 1px; -webkit-appearance: checkbox; appearance: auto; accent-color: var(--pink); }
+  .sub-check input:disabled { opacity: .35; }
+  b.paid { color: var(--sub); text-decoration: line-through; }
   .budget-item { padding: 10px 0; border-bottom: 1px dashed var(--line); }
   .budget-item:last-child { border-bottom: none; }
 
@@ -200,21 +211,22 @@
   <div class="month">
     <button data-move="-1">‹</button><span class="month-label"></span><button data-move="1">›</button>
   </div>
+  <button class="small-btn back-now" id="back-now" hidden>今月にもどる</button>
   <div class="card">
-    <div class="muted">今月あと使えるお金（予算から）</div>
+    <div class="muted" id="left-label">今月あと使えるお金（予算から）</div>
     <div class="big" id="left"></div>
     <div class="muted" id="left-note"></div>
     <div id="total-budget" style="margin-top:6px"></div>
   </div>
   <div class="card">
+    <h2>カテゴリごとの予算</h2>
+    <div id="budget-list"></div>
+  </div>
+  <div class="card" id="home-sums">
     <div class="row"><span>収入</span><b class="plus" id="sum-in"></b></div>
     <div class="row" style="margin-top:8px"><span>支出</span><b class="minus" id="sum-out"></b></div>
     <div class="muted" id="sum-out-detail" style="text-align:right; margin-top:2px"></div>
     <div class="row sep"><span>収支</span><b id="sum-diff"></b></div>
-  </div>
-  <div class="card">
-    <h2>カテゴリごとの予算</h2>
-    <div id="budget-list"></div>
   </div>
 
   <div class="card" id="home-forecast"></div>
@@ -287,9 +299,14 @@
   <div class="toggle" id="review-toggle">
     <button class="on" data-view="graph">グラフ</button>
     <button data-view="list">一覧</button>
+    <button data-view="months">月ごと</button>
   </div>
-  <div class="month">
+  <div class="month" id="review-month-nav">
     <button data-move="-1">‹</button><span class="month-label"></span><button data-move="1">›</button>
+  </div>
+  <div id="review-months" hidden>
+    <div class="muted" style="margin:0 4px 10px">月をタップすると、ホームでその月をくわしく見られます。予算の残りは、固定費をのぞいて計算しています。</div>
+    <div id="month-summary"></div>
   </div>
   <div id="review-graph">
     <div class="card chart">
@@ -375,7 +392,7 @@
     </div>
     <label>利用開始日</label>
     <input id="u-from" type="date">
-    <div class="muted" style="margin-top:6px">この日から自動で記録します。前の日にすると、そこから今日までの分もまとめて記録します（「記録をつけ始めた日」より前はのぞく）。</div>
+    <div class="muted" style="margin-top:6px">この日から、ホームの「毎月の定額支出」にチェック欄が出ます。払ったらチェックすると、その日に記録して残高から引きます（チェック欄は毎月1日にリセット）。</div>
     <label>はらい方</label>
     <select id="u-method"></select>
     <div class="muted" style="margin-top:8px">🔁 カテゴリは自動で「固定費」になります</div>
@@ -385,10 +402,15 @@
 
   <div class="card">
     <h2>🎯 予算</h2>
-    <div class="muted" style="margin-bottom:6px">カテゴリごとに「1か月でいくらまで使うか」を決めます。0のカテゴリは予算なしになります。毎月同じ予算を使います。固定費（毎月の定額支出）は、予算の計算に入れません。</div>
+    <div class="muted" style="margin-bottom:6px">カテゴリごとに「1か月でいくらまで使うか」を、月ごとに決めます。予算を立てていない月は、前の月の予算を引きつぎます。0のカテゴリは予算なしになります。固定費（毎月の定額支出）は、予算の計算に入れません。</div>
+    <div class="month" id="budget-month">
+      <button data-bmove="-1">‹</button><span id="budget-month-label"></span><button data-bmove="1">›</button>
+    </div>
+    <div class="muted" id="budget-source" style="text-align:center"></div>
     <div id="budget-form"></div>
     <div class="row" style="margin-top:16px"><span>予算の合計</span><b id="budget-total"></b></div>
-    <button class="btn" id="b-save">予算を保存</button>
+    <button class="btn" id="b-save">この月の予算を保存</button>
+    <button class="btn sub" id="b-reset" hidden>この月の予算をやめて、前の月から引きつぐ</button>
   </div>
 
   <div class="card">
@@ -498,7 +520,8 @@ function normalize(d) {
     version: 3,
     since: d.since || today(),
     entries: Array.isArray(d.entries) ? d.entries : [],
-    budgets: d.budgets || {},
+    budgets: d.budgets || {}, // はじめの予算（月ごとの予算がまだない月に使う）
+    monthBudgets: d.monthBudgets || {}, // 月ごとの予算 { '2026-11': { 食費: 25000, ... } }
     initial: Object.assign({ bank: 0, paypay: 0, cash: 0 }, d.initial),
     jobs: Array.isArray(d.jobs) ? d.jobs : [],
     shifts: Array.isArray(d.shifts) ? d.shifts : [],
@@ -515,6 +538,7 @@ function normalize(d) {
   }
   for (const s of out.subs) s.category = FIXED;
   delete out.budgets[FIXED];
+  for (const b of Object.values(out.monthBudgets)) delete b[FIXED];
   return out;
 }
 function load() {
@@ -526,6 +550,16 @@ function save() {
   catch (e) { toast('保存できませんでした…'); }
 }
 let data = load();
+
+// ===== 月ごとの予算 =====
+// その月の予算がなければ、いちばん近い前の月の予算を引きつぐ（どれもなければ、はじめの予算）
+function budgetSource(mk) {
+  return Object.keys(data.monthBudgets).filter((k) => k <= mk).sort().pop() || null;
+}
+function budgetsFor(mk) {
+  const from = budgetSource(mk);
+  return from ? data.monthBudgets[from] : data.budgets;
+}
 
 // ===== 残高の計算 =====
 function effect(e, acct) {
@@ -617,18 +651,7 @@ function autoRecord() {
       changed = true;
     }
   };
-  // サブスクを先に記録する（クレカ払いのサブスクを、このあとの引き落とし額に入れるため）
-  for (const sub of data.subs) {
-    let [y, m] = data.since.split('-').map(Number);
-    const [ty, tm] = t.split('-').map(Number);
-    while (y < ty || (y === ty && m <= tm)) {
-      const date = subDate(sub, y, m);
-      if (date) {
-        upsert(`sub:${sub.id}:${y}-${pad(m)}`, { type: 'out', method: sub.method, category: FIXED, amount: sub.amount, date, memo: sub.name }, true);
-      }
-      [y, m] = addMonth(y, m, 1);
-    }
-  }
+  // ※定額支出は自動では記録しない（ホームのチェック欄にチェックしたときに記録する）
   for (const g of payGroups()) {
     upsert(g.key, { type: 'in', account: 'bank', category: 'バイト代', amount: g.amount, date: g.date, memo: `${g.name}の給料` });
   }
@@ -654,7 +677,8 @@ function forecast(mk) {
     const date = subDate(s, y, m);
     if (!date) return null;
     const e = done(`sub:${s.id}:${mk}`);
-    return { label: s.name, icon: methodOf(s.method).icon, date, amount: e ? e.amount : s.amount, done: !!e, bank: s.method === 'bankdebit', method: s.method };
+    // クレカ払いの定額支出も、チェックしたときに銀行から引くので「引き落とし」に入れる
+    return { label: s.name, icon: methodOf(s.method).icon, date: e ? e.date : date, amount: e ? e.amount : s.amount, done: !!e, bank: s.method === 'bankdebit' || s.method === 'card', method: s.method };
   }).filter(Boolean);
   const sortByDate = (a, b) => (a.date < b.date ? -1 : 1);
   return { pays: pays.sort(sortByDate), debits: cards.concat(subs.filter((s) => s.bank)).sort(sortByDate), otherSubs: subs.filter((s) => !s.bank).sort(sortByDate) };
@@ -688,7 +712,8 @@ let view = new Date();
 view.setDate(1);
 const monthKey = () => `${view.getFullYear()}-${pad(view.getMonth() + 1)}`;
 const monthEntries = (mk = monthKey()) => data.entries.filter((e) => e.date.startsWith(mk));
-$$('.month button').forEach((b) =>
+// ホーム・シフト・ふりかえりの月の切りかえ（設定の予算の月の切りかえとは別）
+$$('.month button[data-move]').forEach((b) =>
   b.addEventListener('click', () => {
     view.setMonth(view.getMonth() + Number(b.dataset.move));
     render();
@@ -721,7 +746,8 @@ function renderHome() {
   $('#sum-diff').className = diff >= 0 ? 'plus' : 'minus';
 
   // 予算は、固定費をのぞいた支出で計算する
-  const budgetTotal = BUDGET_CATS.reduce((a, c) => a + (data.budgets[c.name] || 0), 0);
+  const monthBudget = budgetsFor(monthKey());
+  const budgetTotal = BUDGET_CATS.reduce((a, c) => a + (monthBudget[c.name] || 0), 0);
   const budgetUsed = sum(outs.filter((e) => e.category !== FIXED));
   if (budgetTotal > 0) {
     const left = budgetTotal - budgetUsed;
@@ -737,7 +763,7 @@ function renderHome() {
   }
 
   const rows = BUDGET_CATS.map((c) => {
-    const budget = data.budgets[c.name] || 0;
+    const budget = monthBudget[c.name] || 0;
     const used = sum(outs.filter((e) => e.category === c.name));
     return budget || used ? budgetItem(`${c.icon} ${c.name}`, used, budget) : '';
   }).join('');
@@ -769,8 +795,22 @@ function subsHtml() {
   let h = '<h2>🔁 毎月の定額支出</h2>';
   if (!data.subs.length) return h + '<div class="muted">「設定」で定額支出を登録すると、ここに出ます</div>';
   h += `<div class="muted">毎月かかるお金の合計</div><div class="big">${yen(sum(active))}</div>`;
+  // 今月の分のチェック欄（チェックしたら記録して残高から引く。来月になると、まだチェックしていない状態にもどる）
+  const [y, m] = t.split('-').map(Number);
+  const mk = t.slice(0, 7);
+  if (active.length) h += `<h3>${m}月の支払い（払ったらチェック）</h3>`;
   h += active.length
-    ? active.map((s) => row(s, `毎月${dayLabel(s.day)}・${methodOf(s.method).name}`)).join('')
+    ? active.map((s) => {
+        const paid = data.entries.find((e) => e.autoKey === `sub:${s.id}:${mk}`);
+        const due = subDate(s, y, m);
+        const how = s.method === 'card' ? 'クレカ（チェックで銀行から引く）' : methodOf(s.method).name;
+        const note = paid ? `✅ ${mdw(paid.date).replace(/（.）/, '')}に払いました・${how}`
+          : due ? `毎月${dayLabel(s.day)}・${how}` : `${m}月はありません（${dayLabel(s.day)}が始まる前）・${how}`;
+        return `<div class="row line-row sub-row"><label class="sub-check">
+          <input type="checkbox" data-sub-check="${s.id}" ${paid ? 'checked' : ''} ${!paid && !due ? 'disabled' : ''}>
+          <span>${methodOf(s.method).icon} ${escapeHtml(s.name)}<div class="muted">${note}</div></span></label>
+          <b class="${paid ? 'paid' : ''}">${yen(s.amount)}</b></div>`;
+      }).join('')
     : '<div class="muted">いま続いている定額支出はありません</div>';
   if (active.length) {
     h += '<h3>はらい方ごと</h3>' + METHODS.map((m) => {
@@ -785,8 +825,29 @@ function subsHtml() {
   return h;
 }
 
+// 定額支出のチェック：チェックしたらその日に記録（クレカ払いはすぐ銀行から）、はずしたら記録を消す
+$('#home-subs').addEventListener('change', (ev) => {
+  const box = ev.target.closest('[data-sub-check]');
+  if (!box) return;
+  const s = data.subs.find((x) => x.id === box.dataset.subCheck);
+  if (!s) return;
+  const key = `sub:${s.id}:${today().slice(0, 7)}`;
+  if (box.checked) {
+    data.entries.push({
+      id: uid(), type: 'out', method: s.method === 'card' ? 'bankdebit' : s.method, category: FIXED,
+      amount: s.amount, date: today(), memo: s.name, autoKey: key, checked: true,
+    });
+    toast(`${s.name}を払いました💸`);
+  } else {
+    data.entries = data.entries.filter((e) => e.autoKey !== key);
+    toast(`${s.name}のチェックをはずしました`);
+  }
+  save();
+  render();
+});
+
 // ===== 記録する =====
-const form = { type: 'out', method: 'cash', acct: 'bank', cat: CATS.out[0].name, from: 'bank', to: 'cash' };
+const form ={ type: 'out', method: 'cash', acct: 'bank', cat: CATS.out[0].name, from: 'bank', to: 'cash' };
 function renderForm() {
   $('#add-card').className = 'card t-' + form.type;
   $$('#add-toggle button').forEach((b) => b.classList.toggle('on', b.dataset.type === form.type));
@@ -825,7 +886,7 @@ function startEdit(e) {
   $('#f-save').textContent = '保存する';
   $('#edit-buttons').hidden = false;
   $('#add-toggle').hidden = !!e.autoKey; // 自動の記録は、支出・収入の切りかえはしない
-  $('#auto-note').hidden = !e.autoKey;
+  $('#auto-note').hidden = !e.autoKey || !!e.checked; // チェック欄で記録したものは、自動の記録ではない
   renderForm();
   showPage('add');
 }
@@ -865,6 +926,7 @@ $('#f-save').addEventListener('click', () => {
   }
   if (editing) {
     if (editing.autoKey) Object.assign(e, { autoKey: editing.autoKey, edited: true }); // 直したので、自動で上書きしない
+    if (editing.checked) e.checked = true; // 定額支出のチェックの記録は、直してもチェックのまま
     data.entries[data.entries.indexOf(editing)] = e;
     save();
     endEdit();
@@ -984,8 +1046,49 @@ $$('#review-toggle button').forEach((b) =>
     $$('#review-toggle button').forEach((x) => x.classList.toggle('on', x === b));
     $('#review-graph').hidden = reviewView !== 'graph';
     $('#review-list').hidden = reviewView !== 'list';
+    $('#review-months').hidden = reviewView !== 'months';
+    $('#review-month-nav').hidden = reviewView === 'months'; // 月ごとのまとめは全部の月を出すので、月の切りかえはいらない
   })
 );
+
+// ===== ふりかえり：月ごとのまとめ =====
+function budgetTotalFor(mk) {
+  const b = budgetsFor(mk);
+  return BUDGET_CATS.reduce((a, c) => a + (b[c.name] || 0), 0);
+}
+function renderMonthSummary() {
+  // 記録をつけ始めた月から今月まで（新しい月が上）
+  const nowMk = today().slice(0, 7);
+  const months = [];
+  for (let [y, m] = data.since.split('-').map(Number); `${y}-${pad(m)}` <= nowMk; [y, m] = addMonth(y, m, 1)) months.unshift([y, m]);
+  $('#month-summary').innerHTML = months.map(([y, m]) => {
+    const mk = `${y}-${pad(m)}`;
+    const list = monthEntries(mk);
+    const outs = list.filter((e) => e.type === 'out');
+    const inc = sum(list.filter((e) => e.type === 'in'));
+    const out = sum(outs);
+    const budget = budgetTotalFor(mk);
+    const left = budget - sum(outs.filter((e) => e.category !== FIXED));
+    const cell = (label, v, cls) => `<div><div class="muted">${label}</div><b class="${cls}">${v}</b></div>`;
+    return `<div class="card month-sum" data-goto="${mk}">
+      <h2>${y}年${m}月${mk === nowMk ? '（今月）' : ''}<span class="muted">くわしく ›</span></h2>
+      <div class="sum-grid">
+        ${cell('収入', yen(inc), 'plus')}
+        ${cell('支出', yen(out), 'minus')}
+        ${cell('収支', (inc - out > 0 ? '+' : '') + yen(inc - out), inc - out >= 0 ? 'plus' : 'minus')}
+        ${cell('予算の残り', budget ? yen(left) : '予算なし', budget && left < 0 ? 'minus' : '')}
+      </div>
+    </div>`;
+  }).join('');
+}
+$('#month-summary').addEventListener('click', (ev) => {
+  const c = ev.target.closest('[data-goto]');
+  if (!c) return;
+  const [y, m] = c.dataset.goto.split('-').map(Number);
+  view = new Date(y, m - 1, 1);
+  showPage('home');
+  render();
+});
 // 6か月ぶんの月（表示している月が最後）
 function lastMonths(n) {
   const out = [];
@@ -1097,7 +1200,8 @@ function renderList() {
     } else {
       icon = '⚖️'; kind = '残高を合わせた'; sub = `⚖️ 残高を合わせた・${acctOf(e.account).name}`; sign = e.amount > 0 ? '+' : '';
     }
-    const tag = e.autoKey ? `<span class="tag">自動${e.edited ? '・直した' : ''}</span>` : '';
+    const tag = e.checked ? '<span class="tag">チェック</span>'
+      : e.autoKey ? `<span class="tag">自動${e.edited ? '・直した' : ''}</span>` : '';
     html += `<div class="entry" data-edit="${e.id}">
       <div class="info"><div class="title">${escapeHtml(e.memo || kind)}${tag}</div><div class="memo">${escapeHtml(sub)}</div></div>
       <span class="amt ${cls}">${sign}${yen(e.amount)}</span>
@@ -1157,9 +1261,7 @@ function renderSettings() {
         <button class="small-btn" data-edit-sub="${s.id}">編集</button></div>`).join('')
     : '<div class="muted">まだ登録されていません</div>';
 
-  $('#budget-form').innerHTML = BUDGET_CATS.map((c) => `<label>${c.icon} ${c.name}</label>
-    <input type="number" inputmode="numeric" data-budget="${c.name}" value="${data.budgets[c.name] || ''}" placeholder="0">`).join('');
-  updateBudgetTotal();
+  renderBudgetForm();
 }
 $('#i-save').addEventListener('click', () => {
   data.since = $('#i-since').value || today();
@@ -1287,15 +1389,45 @@ function updateBudgetTotal() {
   $('#budget-total').textContent = yen($$('[data-budget]').reduce((a, i) => a + num(i.value), 0));
 }
 $('#budget-form').addEventListener('input', updateBudgetTotal);
+// 設定で表示している予算の月（はじめは今月）
+let budgetMonth = today().slice(0, 7);
+function renderBudgetForm() {
+  const [y, m] = budgetMonth.split('-').map(Number);
+  $('#budget-month-label').textContent = `${y}年${m}月`;
+  const own = !!data.monthBudgets[budgetMonth];
+  const from = budgetSource(budgetMonth);
+  $('#budget-source').textContent = own ? 'この月の予算です'
+    : from ? `${Number(from.slice(5))}月の予算を引きついでいます（保存すると、この月の予算になります）`
+    : 'はじめの予算を使っています（保存すると、この月の予算になります）';
+  $('#b-reset').hidden = !own;
+  const b = budgetsFor(budgetMonth);
+  $('#budget-form').innerHTML = BUDGET_CATS.map((c) => `<label>${c.icon} ${c.name}</label>
+    <input type="number" inputmode="numeric" data-budget="${c.name}" value="${b[c.name] || ''}" placeholder="0">`).join('');
+  updateBudgetTotal();
+}
+$('#budget-month').addEventListener('click', (ev) => {
+  const b = ev.target.closest('[data-bmove]');
+  if (!b) return;
+  const [y, m] = addMonth(...budgetMonth.split('-').map(Number), Number(b.dataset.bmove));
+  budgetMonth = `${y}-${pad(m)}`;
+  renderBudgetForm();
+});
 $('#b-save').addEventListener('click', () => {
   const budgets = {};
   $$('[data-budget]').forEach((i) => {
     const n = num(i.value);
     if (n > 0) budgets[i.dataset.budget] = n;
   });
-  data.budgets = budgets;
+  data.monthBudgets[budgetMonth] = budgets;
   save();
-  toast('予算を保存しました🎯');
+  toast(`${Number(budgetMonth.slice(5))}月の予算を保存しました🎯`);
+  render();
+});
+$('#b-reset').addEventListener('click', () => {
+  if (!confirm(`${Number(budgetMonth.slice(5))}月の予算をやめて、前の月の予算を引きつぎますか？`)) return;
+  delete data.monthBudgets[budgetMonth];
+  save();
+  toast('前の月の予算を引きつぎました');
   render();
 });
 
@@ -1345,13 +1477,23 @@ $$('nav button').forEach((b) =>
 function render() {
   autoRecord();
   $$('.month-label').forEach((l) => (l.textContent = `${view.getFullYear()}年${view.getMonth() + 1}月`));
+  // ほかの月を見ているときは「今月にもどる」を出す
+  const isNow = monthKey() === today().slice(0, 7);
+  $('#back-now').hidden = isNow;
+  $('#left-label').textContent = isNow ? '今月あと使えるお金（予算から）' : `${view.getMonth() + 1}月の予算の残り`;
   renderHome();
   renderCal();
   renderDonut();
   renderBalanceBars();
   renderList();
+  renderMonthSummary();
   if (page === 'settings') renderSettings();
 }
+$('#back-now').addEventListener('click', () => {
+  view = new Date();
+  view.setDate(1);
+  render();
+});
 // アプリに戻ってきたときにも、日付が変わっていたら自動記録する
 document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
 try { if (!localStorage.getItem(KEY)) save(); } catch (e) {} // はじめて開いた日を「記録をつけ始めた日」にする
