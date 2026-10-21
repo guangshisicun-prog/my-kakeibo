@@ -5,77 +5,74 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="家計簿">
-<meta name="theme-color" content="#0d0a0c">
+<meta name="theme-color" content="#f8f1dc">
 <title>my家計簿</title>
-<!-- 見出しの飾り文字（UnifrakturMaguntia）と、クラシックな明朝体（Shippori Mincho）。
-     ネットにつながっていないときは、iPhoneに入っている明朝体で表示される -->
+<!-- 見出しの、ほんわかした丸い文字（Kiwi Maru）と、読みやすい丸ゴシック（M PLUS Rounded 1c）。
+     ネットにつながっていないときは、iPhoneに入っている丸ゴシックで表示される -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;700&family=UnifrakturMaguntia&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@500&family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
 <style>
-  /* ゴシック調：黒を土台に、深い赤と金色 */
+  /* どうぶつの森風：クリーム色を土台に、若葉色とオレンジ。ほのぼの */
   :root {
-    color-scheme: dark;
-    --bg: #0d0a0c;
-    --card: #191214;
-    --card-2: #221a1c;
-    --text: #ecdfc6;
-    --sub: #a0927e;
-    --line: #3c2c2c;
-    --gold: #c9a45c;
-    --gold-line: rgba(201, 164, 92, .3);
-    --pink: #8e1a2e;
-    --pink-soft: #35121a;
-    --mint: #b08a43;
-    --mint-soft: #33280f;
-    --blue: #5e3f7e;
-    --blue-soft: #241a2e;
-    --yellow: #d9822b;
-    --yellow-soft: #33280f;
-    --red: #e0606f;
-    --plus: #d9b56a;
-    --radius: 4px;
+    color-scheme: light;
+    --bg: #f8f1dc;
+    --card: #fffdf6;
+    --card-2: #fff8e8;
+    --text: #6b4f2a;
+    --sub: #a68b63;
+    --line: #eadfc4;
+    --frame: #e8dcbc;
+    --leaf: #7bc67b;
+    --leaf-dark: #5aa25a;
+    --orange: #f4b860;
+    --pink: #7bc67b;
+    --pink-soft: #eef8e8;
+    --mint: #f4b860;
+    --mint-soft: #fff1d9;
+    --blue: #8fc9e8;
+    --blue-soft: #e8f5fb;
+    --yellow: #f4b860;
+    --yellow-soft: #fff1d9;
+    --red: #d0603f;
+    --plus: #4f9a4f;
+    --radius: 28px;
     /* グラフの色 */
-    --c-bank: #c9a45c;
-    --c-bank-soft: #5e4c2c;
+    --c-bank: #7bc67b;
+    --c-bank-soft: #c5e6c5;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--text); }
   body {
-    font-family: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+    font-family: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", sans-serif;
     padding: env(safe-area-inset-top) 16px calc(90px + env(safe-area-inset-bottom));
     max-width: 520px; margin: 0 auto;
-    background: radial-gradient(ellipse at top, #241519 0%, var(--bg) 60%) fixed;
+    /* うすい若葉色の水玉 */
+    background: radial-gradient(circle at 10px 10px, rgba(123, 198, 123, .18) 3px, transparent 4px) 0 0 / 28px 28px fixed, var(--bg);
   }
-  h1 {
-    font-family: "UnifrakturMaguntia", "Shippori Mincho", "Hiragino Mincho ProN", serif;
-    font-weight: 400; font-size: 30px; color: var(--gold); letter-spacing: .02em;
-    margin: 22px 0 14px; padding-bottom: 8px; border-bottom: 3px double var(--gold-line);
-  }
-  h2 { font-size: 16px; margin: 0 0 12px; color: var(--gold); letter-spacing: .08em; }
-  h3 { font-size: 14px; margin: 14px 0 4px; color: var(--sub); letter-spacing: .05em; }
-  /* カードは金の細い二重線でふちどり、四すみに小さな飾り */
+  h1 { font-family: "Kiwi Maru", serif; font-weight: 500; font-size: 28px; color: var(--text); margin: 22px 0 16px; }
+  /* 小見出しは、若葉色のまるいラベル */
+  h2 { font-family: "Kiwi Maru", serif; font-weight: 500; font-size: 15px; margin: 0 0 12px; display: inline-block; padding: 2px 12px; border-radius: 99px; background: var(--leaf); color: #fff; letter-spacing: .04em; }
+  h3 { font-size: 14px; margin: 14px 0 4px; color: var(--sub); }
+  /* カードは、まるくて少し厚みのある板 */
   .card {
     position: relative; background: var(--card); border-radius: var(--radius); padding: 20px 18px; margin-bottom: 16px;
-    border: 1px solid var(--gold-line); box-shadow: inset 0 0 0 3px var(--card), inset 0 0 0 4px rgba(201, 164, 92, .12);
+    border: 3px solid var(--frame); box-shadow: 0 4px 0 #e2d3ad;
   }
-  .card::before, .card::after { content: '✦'; position: absolute; font-size: 9px; color: var(--gold); opacity: .7; line-height: 1; }
-  .card::before { top: 5px; left: 6px; }
-  .card::after { bottom: 5px; right: 6px; }
   .muted { color: var(--sub); font-size: 13px; }
   .big { font-size: 34px; font-weight: 700; letter-spacing: .5px; }
   .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .line-row { padding: 6px 0; }
   .minus { color: var(--red); }
   .plus { color: var(--plus); }
-  .small-btn { border: 1px solid var(--gold-line); background: transparent; border-radius: var(--radius); padding: 6px 12px; font-size: 13px; color: var(--text); font-family: inherit; flex-shrink: 0; }
+  .small-btn { border: 2px solid var(--line); background: transparent; border-radius: 99px; padding: 6px 12px; font-size: 13px; color: var(--text); font-family: inherit; flex-shrink: 0; }
   .sep { border-top: 1px dashed var(--line); margin-top: 8px; padding-top: 8px; }
 
   /* 月の切り替え */
-  .month { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 4px 0 14px; font-weight: 700; color: var(--gold); letter-spacing: .05em; }
-  .month button { border: 1px solid var(--gold-line); background: var(--card); width: 36px; height: 36px; border-radius: 50%; font-size: 16px; color: var(--gold); }
+  .month { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 4px 0 14px; font-weight: 700; color: var(--text); }
+  .month button { border: 2px solid var(--line); background: var(--card); width: 36px; height: 36px; border-radius: 50%; font-size: 16px; color: var(--text); }
 
   /* 残高 */
   .acct { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px dashed var(--line); }
@@ -85,12 +82,12 @@
   .acct-total { border-top: 2px solid var(--line); margin-top: 4px; padding-top: 10px; }
 
   /* 見込み */
-  .forecast-end { background: var(--blue-soft); border: 1px solid var(--gold-line); border-radius: var(--radius); padding: 12px 14px; margin-top: 12px; }
+  .forecast-end { background: var(--pink-soft); border: 2px solid var(--line); border-radius: 20px; padding: 12px 14px; margin-top: 12px; }
   .forecast-end b { font-size: 22px; }
 
   /* 予算バー */
-  .bar { height: 8px; background: var(--line); border-radius: 1px; overflow: hidden; margin: 6px 0 2px; }
-  .bar > div { height: 100%; border-radius: 1px; background: var(--mint); transition: width .3s; }
+  .bar { height: 12px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 6px 0 2px; }
+  .bar > div { height: 100%; border-radius: 99px; background: var(--leaf); transition: width .3s; }
   .bar > div.warn { background: var(--yellow); }
   .bar > div.over { background: var(--red); }
   /* 月ごとのまとめ */
@@ -101,35 +98,32 @@
   .back-now { display: block; margin: -6px auto 14px; }
   /* 定額支出のチェック欄 */
   .sub-check { display: flex; align-items: flex-start; gap: 10px; margin: 0; font-size: 15px; color: var(--text); cursor: pointer; flex: 1; min-width: 0; }
-  .sub-check input { width: 22px; height: 22px; flex-shrink: 0; margin-top: 1px; -webkit-appearance: checkbox; appearance: auto; accent-color: var(--pink); }
+  .sub-check input { width: 22px; height: 22px; flex-shrink: 0; margin-top: 1px; -webkit-appearance: checkbox; appearance: auto; accent-color: var(--leaf); }
   .sub-check input:disabled { opacity: .35; }
   b.paid { color: var(--sub); text-decoration: line-through; }
   .budget-item { padding: 10px 0; border-bottom: 1px dashed var(--line); }
   .budget-item:last-child { border-bottom: none; }
 
   /* 入力フォーム */
-  .toggle { display: flex; background: #120d0f; border: 1px solid var(--gold-line); border-radius: var(--radius); padding: 3px; margin-bottom: 16px; }
-  .toggle button { flex: 1; border: none; background: none; padding: 10px; border-radius: 2px; letter-spacing: .1em; font-size: 15px; font-weight: 700; color: var(--sub); font-family: inherit; }
-  .toggle button.on { color: var(--text); background: var(--pink); }
-  .toggle button.on[data-type="in"] { background: var(--mint); }
-  .toggle button.on[data-type="move"] { background: var(--blue); }
+  .toggle { display: flex; background: #f1e7cb; border-radius: 99px; padding: 4px; margin-bottom: 16px; }
+  .toggle button { flex: 1; border: none; background: none; padding: 10px; border-radius: 99px; font-size: 15px; font-weight: 700; color: var(--sub); font-family: inherit; }
+  .toggle button.on { color: #fff; background: var(--orange); }
   label { display: block; font-size: 13px; color: var(--sub); margin: 12px 0 6px; }
   label.check { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 15px; }
   label.check input { width: 22px; height: 22px; -webkit-appearance: checkbox; appearance: auto; }
-  input, select { width: 100%; font-size: 17px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card-2); color: var(--text); font-family: inherit; -webkit-appearance: none; appearance: none; }
-  input:focus, select:focus { outline: none; border-color: var(--gold); }
+  input, select { width: 100%; font-size: 17px; padding: 12px 14px; border: 2px solid var(--line); border-radius: 14px; background: var(--card-2); color: var(--text); font-family: inherit; -webkit-appearance: none; appearance: none; }
+  input:focus, select:focus { outline: none; border-color: var(--leaf); }
   input.amount { font-size: 28px; font-weight: 700; text-align: right; }
   .two { display: flex; gap: 10px; }
   .two > div { flex: 1; min-width: 0; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-  .chip { border: 1px solid var(--line); background: var(--card-2); padding: 8px 12px; border-radius: var(--radius); font-size: 14px; color: var(--text); font-family: inherit; }
-  .chip.on { border-color: var(--gold); background: var(--pink-soft); font-weight: 700; }
-  .t-in .chip.on { border-color: var(--gold); background: var(--mint-soft); }
-  .t-move .chip.on { border-color: var(--gold); background: var(--blue-soft); }
-  .btn { width: 100%; border: 1px solid var(--gold-line); padding: 16px; border-radius: var(--radius); font-size: 17px; font-weight: 700; letter-spacing: .15em; color: var(--text); background: linear-gradient(var(--pink), #5c0f1d); margin-top: 20px; font-family: inherit; }
-  .btn.sub { background: transparent; color: var(--text); border: 1px solid var(--line); margin-top: 10px; }
-  .btn.mint { background: linear-gradient(var(--mint), #6e5424); }
-  .btn.blue { background: linear-gradient(var(--blue), #3a2650); }
+  .chip { border: 2px solid var(--line); background: var(--card-2); padding: 8px 12px; border-radius: 99px; font-size: 14px; color: var(--text); font-family: inherit; }
+  .chip.on { border-color: var(--orange); background: var(--orange); color: #fff; font-weight: 700; }
+  .btn { width: 100%; border: none; padding: 16px; border-radius: 99px; font-size: 17px; font-weight: 800; letter-spacing: .08em; color: #fff; background: var(--leaf); box-shadow: 0 4px 0 var(--leaf-dark); margin-top: 20px; font-family: "Kiwi Maru", inherit; }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--leaf-dark); }
+  .btn.sub { background: transparent; color: var(--text); border: 2px solid var(--line); box-shadow: none; margin-top: 10px; }
+  .btn.mint { background: var(--orange); box-shadow: 0 4px 0 #d99a3f; }
+  .btn.blue { background: var(--blue); box-shadow: 0 4px 0 #6aa9cc; }
 
   /* 一覧 */
   .entry { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px dashed var(--line); cursor: pointer; }
@@ -142,9 +136,9 @@
   .entry .amt.minus { color: var(--red); }
   .entry .amt.plus { color: var(--plus); }
   .entry .del { border: none; background: none; color: var(--sub); font-size: 18px; padding: 6px; }
-  .day { font-size: 12px; color: var(--gold); margin: 14px 0 0; font-weight: 700; letter-spacing: .05em; }
+  .day { font-size: 12px; color: var(--leaf-dark); margin: 14px 0 0; font-weight: 700; }
   .empty { text-align: center; color: var(--sub); padding: 24px 0; font-size: 14px; }
-  .tag { display: inline-block; font-size: 10px; background: var(--yellow-soft); color: var(--gold); border-radius: 2px; padding: 1px 6px; margin-left: 4px; vertical-align: 1px; }
+  .tag { display: inline-block; font-size: 10px; background: var(--orange); color: #fff; border-radius: 99px; padding: 1px 6px; margin-left: 4px; vertical-align: 1px; }
 
   /* グラフ */
   .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -164,10 +158,10 @@
   .cal .wd { text-align: center; font-size: 11px; color: var(--sub); padding-bottom: 4px; }
   .cal .wd:first-child { color: var(--red); }
   .cal .wd:last-child { color: var(--blue); }
-  .cal .d { min-height: 54px; border: 1px solid transparent; border-radius: var(--radius); background: var(--card-2); padding: 4px 2px; font-size: 13px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: inherit; color: var(--text); }
+  .cal .d { min-height: 54px; border: 2px solid transparent; border-radius: 12px; background: var(--card-2); padding: 4px 2px; font-size: 13px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: inherit; color: var(--text); }
   .cal .d.blank { background: none; }
-  .cal .d.today .n { background: var(--pink); color: var(--text); border-radius: 2px; padding: 0 6px; font-weight: 700; }
-  .cal .d.sel { border-color: var(--gold); }
+  .cal .d.today .n { background: var(--leaf); color: #fff; border-radius: 99px; padding: 0 6px; font-weight: 700; }
+  .cal .d.sel { border-color: var(--leaf); }
   .cal .dots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; }
   .cal .dot { width: 7px; height: 7px; border-radius: 50%; }
   .cal .mark { font-size: 11px; line-height: 1; }
@@ -183,17 +177,19 @@
   .item .info { flex: 1; min-width: 0; }
 
   /* 下のタブ */
-  nav { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(13, 10, 12, .95); backdrop-filter: blur(10px); border-top: 1px solid var(--gold-line); display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
+  nav { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(255, 253, 246, .96); backdrop-filter: blur(10px); border-top: 3px solid var(--frame); display: flex; padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
   nav button { flex: 1; border: none; background: none; padding: 10px 0 8px; font-size: 11px; color: var(--sub); display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: inherit; }
-  nav button .i { font-size: 22px; filter: grayscale(1); opacity: .45; }
-  nav button.on { color: var(--gold); font-weight: 700; }
-  nav button.on .i { filter: grayscale(1) sepia(1) saturate(1.6) brightness(1.05); opacity: 1; }
+  nav button .i { font-size: 22px; filter: grayscale(.3); opacity: .55; }
+  nav button.on { color: var(--leaf-dark); font-weight: 700; }
+  nav button.on .i { filter: none; opacity: 1; }
 
   .page { display: none; }
-  .page.on { display: block; }
+  .page.on { display: block; animation: boing .45s cubic-bezier(.3, 1.5, .5, 1); }
+  /* 画面を切りかえたら、ぽよんとはずむ */
+  @keyframes boing { 0% { transform: scale(.94); opacity: 0; } 100% { transform: none; opacity: 1; } }
   [hidden] { display: none !important; }
 
-  .toast { position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: #241a1c; color: var(--text); border: 1px solid var(--gold-line); padding: 10px 18px; border-radius: var(--radius); font-size: 14px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 20; white-space: nowrap; }
+  .toast { position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--text); color: var(--card); border: none; padding: 10px 18px; border-radius: 99px; font-size: 14px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 20; white-space: nowrap; }
   .toast.show { opacity: .92; }
 </style>
 </head>
@@ -451,7 +447,7 @@ const CATS = {
   ],
 };
 // グラフでカテゴリを見分ける色（色の見え方が人とちがっても区別しやすい順番）
-const CAT_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767'];
+const CAT_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
 // 定額支出はぜんぶ「固定費」。固定費は予算の計算から外す
 const FIXED = '固定費';
 const BUDGET_CATS = CATS.out.filter((c) => c.name !== FIXED);
@@ -466,7 +462,7 @@ const METHODS = [
   { id: 'card', name: 'クレカ', icon: '💳', acct: null },
   { id: 'bankdebit', name: '銀行引き落とし', icon: '🏦', acct: 'bank' },
 ];
-const JOB_COLORS = ['#b33a4c', '#c9a45c', '#7d5ba6', '#4f8a8b', '#c97b4a', '#8a9a5b'];
+const JOB_COLORS = ['#f59bab', '#7ccbb4', '#8fb5e8', '#f7c86b', '#c3a6e6', '#f2a37b'];
 const KEY = 'kakeibo-data-v1';
 
 // ===== 小さな道具 =====

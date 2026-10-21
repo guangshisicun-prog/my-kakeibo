@@ -838,13 +838,15 @@ group('月の切りかえ・そのほか', () => {
     eq(app.text('#home-title'), 'my家計簿');
     eq(app.w.document.title, 'my家計簿', 'ページのタイトルもそろえる');
   });
-  test('ゴシック調のデザイン（黒い背景・金色の飾り文字の見出し・明朝体）になっている', async () => {
+  test('どうぶつの森風のデザイン（クリーム色の背景・丸い文字・若葉色の小見出し）になっている', async () => {
     const app = await loadApp({ data: base() });
     const css = (el, p) => app.w.getComputedStyle(el).getPropertyValue(p);
-    eq(css(app.w.document.documentElement, '--bg').trim(), '#0d0a0c', '背景は黒');
-    ok(css(app.q('#home-title'), 'font-family').includes('UnifrakturMaguntia'), '見出しは飾り文字');
-    eq(css(app.q('#home-title'), 'color'), 'rgb(201, 164, 92)', '見出しは金色');
-    ok(css(app.w.document.body, 'font-family').includes('Mincho'), '文字は明朝体');
+    eq(css(app.w.document.documentElement, '--bg').trim(), '#f8f1dc', '背景はクリーム色');
+    ok(css(app.q('#home-title'), 'font-family').includes('Kiwi Maru'), '見出しはほんわかした丸い文字');
+    ok(css(app.w.document.body, 'font-family').includes('Rounded'), '文字は丸ゴシック');
+    eq(css(app.q('#page-home h2'), 'background-color'), 'rgb(123, 198, 123)', '小見出しは若葉色のラベル');
+    eq(css(app.q('.card'), 'border-top-left-radius'), '28px', 'カードはまるい');
+    eq(app.text('#home-title'), 'my家計簿', '見出しに絵文字をつけない');
   });
   test('ホームの並び：今月あと使えるお金 → カテゴリごとの予算 → 定額支出 → 収支 → 見込み', async () => {
     const app = await loadApp({ data: base() });
