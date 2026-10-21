@@ -120,7 +120,7 @@
   .two { display: flex; gap: 10px; }
   .two > div { flex: 1; min-width: 0; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-  .chip { border: 2px solid var(--line); background: var(--card-2); padding: 8px 12px; border-radius: 99px; font-size: 14px; color: var(--text); font-family: inherit; }
+  .chip { border: 2px solid var(--line); background: var(--card-2); padding: 8px 12px; border-radius: 99px; font-size: 14px; color: var(--text); font-family: inherit; white-space: nowrap; }
   .chip.on { border-color: var(--orange); background: var(--orange); color: #fff; font-weight: 700; }
   .btn { width: 100%; border: none; padding: 16px; border-radius: 99px; font-size: 17px; font-weight: 800; letter-spacing: .08em; color: #fff; background: var(--leaf); box-shadow: 0 4px 0 var(--leaf-dark); margin-top: 20px; font-family: "Kiwi Maru", inherit; }
   .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--leaf-dark); }
@@ -166,6 +166,7 @@
   .cal .d.today .n { background: var(--leaf); color: #fff; border-radius: 99px; padding: 0 6px; font-weight: 700; }
   .cal .d.sel { border-color: var(--leaf); }
   .cal .d { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+  .pp-icon { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 1.2em; height: 1.2em; border: .13em solid #ff0033; border-radius: .28em; background: #fff; color: #ff0033; font: 900 .9em/1 -apple-system, "Helvetica Neue", Arial, sans-serif; vertical-align: .05em; } /* .05em：となりの文字のまん中にそろう高さ */
   .cal .d.multi { border-color: var(--leaf); background: var(--leaf); color: #fff; }
   .cal .dots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; }
   .cal .dot { width: 7px; height: 7px; border-radius: 50%; }
@@ -456,14 +457,16 @@ const CAT_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008
 // 定額支出はぜんぶ「固定費」。固定費は予算の計算から外す
 const FIXED = '固定費';
 const BUDGET_CATS = CATS.out.filter((c) => c.name !== FIXED);
+// PayPayのアイコン（赤い四角でPを囲んだもの。絵文字ではなく文字と線で作る）
+const PAYPAY_ICON = '<span class="pp-icon">P</span>';
 const ACCTS = [
   { id: 'bank', name: '銀行', icon: '🏦' },
-  { id: 'paypay', name: 'PayPay', icon: '📱' },
+  { id: 'paypay', name: 'PayPay', icon: PAYPAY_ICON },
   { id: 'cash', name: 'お財布', icon: '👛' },
 ];
 const METHODS = [
   { id: 'cash', name: '現金', icon: '💴', acct: 'cash' },
-  { id: 'paypay', name: 'PayPay', icon: '📱', acct: 'paypay' },
+  { id: 'paypay', name: 'PayPay', icon: PAYPAY_ICON, acct: 'paypay' },
   { id: 'card', name: 'クレカ', icon: '💳', acct: null },
   { id: 'bankdebit', name: '銀行引き落とし', icon: '🏦', acct: 'bank' },
 ];
@@ -1276,13 +1279,14 @@ function renderList() {
       lastDate = e.date;
     }
     // 内容を大きく出して、カテゴリやはらい方は下に小さく出す（内容がなければカテゴリ名）
+    // sub はHTMLのまま出す（PayPayのアイコンのため）。文字は escapeHtml してから入れる
     let icon, kind, sub, sign = '', cls = '';
     if (e.type === 'out') {
       const m = methodOf(e.method);
-      icon = iconOf('out', e.category); kind = e.category; sub = `${icon} ${e.category}・${m.icon} ${m.name}`; sign = '-'; cls = 'minus';
+      icon = iconOf('out', e.category); kind = e.category; sub = `${icon} ${escapeHtml(e.category)}・${m.icon} ${m.name}`; sign = '-'; cls = 'minus';
     } else if (e.type === 'in') {
       const a = acctOf(e.account);
-      icon = iconOf('in', e.category); kind = e.category; sub = `${icon} ${e.category}・${a.icon} ${a.name}へ`; sign = '+'; cls = 'plus';
+      icon = iconOf('in', e.category); kind = e.category; sub = `${icon} ${escapeHtml(e.category)}・${a.icon} ${a.name}へ`; sign = '+'; cls = 'plus';
     } else if (e.type === 'move') {
       icon = '💱'; kind = '移動'; sub = `💱 移動・${acctOf(e.from).name} → ${acctOf(e.to).name}`;
     } else if (e.type === 'cardpay') {
@@ -1293,7 +1297,7 @@ function renderList() {
     const tag = e.checked ? '<span class="tag">チェック</span>'
       : e.autoKey ? `<span class="tag">自動${e.edited ? '・直した' : ''}</span>` : '';
     html += `<div class="entry" data-edit="${e.id}">
-      <div class="info"><div class="title">${escapeHtml(e.memo || kind)}${tag}</div><div class="memo">${escapeHtml(sub)}</div></div>
+      <div class="info"><div class="title">${escapeHtml(e.memo || kind)}${tag}</div><div class="memo">${sub}</div></div>
       <span class="amt ${cls}">${sign}${yen(e.amount)}</span>
       <button class="del" data-del="${e.id}" aria-label="削除">×</button>
     </div>`;
@@ -1436,7 +1440,7 @@ function openSubForm(sub) {
   $('#u-name').value = sub ? sub.name : '';
   $('#u-amount').value = sub ? sub.amount : '';
   $('#u-day').innerHTML = dayOptions(sub ? sub.day : 1);
-  $('#u-method').innerHTML = METHODS.map((m) => `<option value="${m.id}">${m.icon} ${m.name}</option>`).join('');
+  $('#u-method').innerHTML = METHODS.map((m) => `<option value="${m.id}">${m.icon === PAYPAY_ICON ? '' : m.icon + ' '}${m.name}</option>`).join('');
   $('#u-method').value = sub ? sub.method : 'card';
   $('#u-from').value = sub ? sub.from : today();
   $('#u-cancel').textContent = sub ? 'この定額支出をやめる' : 'やめる';

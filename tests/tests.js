@@ -1190,6 +1190,66 @@ group('シフトをまとめて追加（長押し）', () => {
 });
 
 // =====================================================================
+group('PayPayのアイコン', () => {
+  test('どの画面にも、前の📱アイコンはもう出ない', async () => {
+    const app = await loadApp({ data: base({ entries: [out('2026-10-01', 500, 'paypay')], subs: [{ id: 'u1', name: '音楽', amount: 980, day: 5, method: 'paypay', category: '固定費', from: '2026-08-01' }] }) });
+    for (const t of ['home', 'add', 'cal', 'review', 'settings']) {
+      app.tab(t);
+      ok(!app.q('body').innerHTML.includes('📱'), `${t}の画面に📱が残っています`);
+    }
+  });
+  test('ホームの残高に、赤い四角で囲んだPが出る', async () => {
+    const app = await loadApp({ data: base() });
+    const icon = app.q('#balances .pp-icon');
+    ok(icon, 'PayPayのアイコンがありません');
+    eq(icon.textContent, 'P');
+    const st = app.w.getComputedStyle(icon);
+    eq([st.color, st.borderTopColor], ['rgb(255, 0, 51)', 'rgb(255, 0, 51)']);
+  });
+  test('一覧の記録にも、アイコンとして出る（文字のまま出ない）', async () => {
+    const app = await loadApp({ data: base({ entries: [out('2026-10-01', 500, 'paypay')] }) });
+    app.tab('review');
+    app.click('#review-toggle [data-view="list"]');
+    ok(app.q('#entry-list .memo .pp-icon'), 'アイコンがありません');
+    ok(!app.text('#entry-list').includes('<span'), app.text('#entry-list'));
+  });
+  test('となりの文字と、上下のまん中がそろっている（ずれは1px以内）', async () => {
+    const app = await loadApp({ data: base({ entries: [out('2026-10-01', 500, 'paypay')] }) });
+    // アイコンのまん中と、すぐあとの文字のまん中の高さのちがい
+    const gap = (icon) => {
+      let n = icon.nextSibling;
+      if (!n || !n.textContent.trim()) n = icon.parentElement.nextElementSibling.firstChild;
+      const i = n.textContent.search(/\S/);
+      const r = app.w.document.createRange(); r.setStart(n, i); r.setEnd(n, i + 1);
+      const a = icon.getBoundingClientRect(), b = r.getBoundingClientRect();
+      return Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2);
+    };
+    const places = [
+      ['home', '#balances .pp-icon'],
+      ['add', '#f-method [data-id="paypay"] .pp-icon'],
+    ];
+    for (const [t, sel] of places) {
+      app.tab(t);
+      const g = gap(app.q(sel));
+      ok(g <= 1, `${t}の画面で${g.toFixed(2)}pxずれています`);
+    }
+  });
+  test('記録の画面の「はらい方」にも出る', async () => {
+    const app = await loadApp({ data: base() });
+    app.tab('add');
+    ok(app.q('#f-method [data-id="paypay"] .pp-icon'), 'はらい方のPayPayにアイコンがありません');
+  });
+  test('定額支出の「はらい方」の選ぶリストでは、文字だけ（飾りの記号がそのまま出ない）', async () => {
+    const app = await loadApp({ data: base() });
+    app.tab('settings');
+    app.click('#sub-new');
+    const opt = app.q('#u-method option[value="paypay"]');
+    eq(opt.textContent, 'PayPay');
+    ok(app.q('#u-method option[value="cash"]').textContent.includes('💴'), 'ほかのはらい方は絵文字のまま');
+  });
+});
+
+// =====================================================================
 group('バックアップ', () => {
   const pickFile = async (app, text) => {
     const dt = new app.w.DataTransfer();
@@ -1288,7 +1348,7 @@ group('一覧と残高合わせの細かい操作', () => {
     ] }) });
     openList(app);
     const t = app.text('#entry-list');
-    ['銀行 → お財布', '残高を合わせた', '+¥300', 'おばあちゃん', '📮 仕送り・📱 PayPayへ'].forEach((s) => ok(t.includes(s), `「${s}」が出ていません\n${t}`));
+    ['銀行 → お財布', '残高を合わせた', '+¥300', 'おばあちゃん', '📮 仕送り・P PayPayへ'].forEach((s) => ok(t.includes(s), `「${s}」が出ていません\n${t}`));
   });
   test('予算をこえたら「あと使えるお金」が赤くなる', async () => {
     const app = await loadApp({ data: base({ budgets: { '食費': 1000 }, entries: [out('2026-10-01', 1500), out('2026-10-02', 850, 'cash', '食費')] }) });
