@@ -848,6 +848,17 @@ group('月の切りかえ・そのほか', () => {
     eq(css(app.q('.card'), 'border-top-left-radius'), '28px', 'カードはまるい');
     eq(app.text('#home-title'), 'my家計簿', '見出しに絵文字をつけない');
   });
+  test('ホーム画面のアイコン（180×180の画像）が用意されている', async () => {
+    const app = await loadApp({ data: base() });
+    const link = app.q('link[rel="apple-touch-icon"]');
+    ok(link, 'アイコンの指定がない');
+    const res = await fetch('../' + link.getAttribute('href'), { cache: 'no-store' });
+    eq([res.status, res.headers.get('content-type')], [200, 'image/png']);
+    const img = new Image();
+    img.src = URL.createObjectURL(await res.blob());
+    await img.decode();
+    eq([img.naturalWidth, img.naturalHeight], [180, 180]);
+  });
   test('ホームの並び：今月あと使えるお金 → カテゴリごとの予算 → 定額支出 → 収支 → 見込み', async () => {
     const app = await loadApp({ data: base() });
     const cards = app.qa('#page-home > .card');
